@@ -10,6 +10,29 @@
     <div class="container">
         <!-- Banner Section -->
         <section class="banner">
+            <div class="banner-bg" aria-hidden="true">
+                <!-- Stylized abstract map + mascot (SVG) as background layer -->
+                <svg viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid slice" class="banner-svg">
+                    <defs>
+                        <linearGradient id="grad" x1="0%" x2="100%">
+                            <stop offset="0%" stop-color="rgba(8,25,63,0.6)" />
+                            <stop offset="100%" stop-color="rgba(20,90,170,0.6)" />
+                        </linearGradient>
+                    </defs>
+                    <!-- Abstract map blobs -->
+                    <g fill="url(#grad)" opacity="0.18">
+                        <path d="M120 400 C200 360, 320 420, 420 380 C520 340, 620 420, 780 400 C940 380, 1040 460, 1160 430 L1160 600 L0 600 Z"/>
+                        <path d="M40 120 C120 80, 260 120, 380 90 C500 60, 640 120, 820 100 C1000 80, 1120 140, 1180 130 L1180 0 L0 0 Z"/>
+                    </g>
+
+                    <!-- Simple mascot inspired shape (non-identical) -->
+                    <g transform="translate(840,140) scale(0.9)" opacity="0.95">
+                        <circle cx="120" cy="120" r="90" fill="#0b1b2b" />
+                        <path d="M60 180 Q120 60 180 180 Q150 160 120 160 Q90 160 60 180 Z" fill="#081323" />
+                        <rect x="100" y="70" width="40" height="60" rx="8" fill="#fff" opacity="0.06" />
+                    </g>
+                </svg>
+            </div>
             <div class="banner-content">
                 <div class="github-logo">
                     <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -33,13 +56,15 @@
                 </p>
                 
                 <div class="approaches">
-                    <div class="approach-card">
+                    <div class="approach-card" data-type="copilot">
                         <h4>🚀 Enfoque 1: Copilot CLI</h4>
-                        <p>Integración directa con GitHub Actions para clasificación rápida y sencilla.</p>
+                        <p>Integración con Copilot CLI como paso en tu workflow para ayudar en tareas puntuales.</p>
+                        <button class="view-steps button small" data-type="copilot">Ver flujo</button>
                     </div>
-                    <div class="approach-card">
+                    <div class="approach-card" data-type="agentic">
                         <h4>🤖 Enfoque 2: Workflow Agéntico</h4>
-                        <p>Agente autónomo para tareas complejas y análisis profundo de issues.</p>
+                        <p>Agente autónomo que orquesta múltiples pasos y toma decisiones en tiempo real.</p>
+                        <button class="view-steps button small" data-type="agentic">Ver flujo</button>
                     </div>
                 </div>
 
@@ -68,9 +93,13 @@
                     </div>
                 </div>
 
+                <div class="workflow-demo" id="workflowDemo" aria-live="polite">
+                    <!-- Animated workflow steps will be injected here -->
+                </div>
+
                 <div class="links">
-                    <a href="https://github.com" class="button-link">Visita GitHub</a>
-                    <a href="https://docs.github.com/en/copilot" class="button-link">Docs de Copilot</a>
+                    <a href="docs/ENFOQUE_2_GITHUB_CLI_AGENTIC.md" class="button-link">Workflow Agéntico (Docs)</a>
+                    <a href="docs/ENFOQUE_1_COPILOT_CLI.md" class="button-link">Copilot CLI (Docs)</a>
                 </div>
             </div>
         </section>

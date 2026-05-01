@@ -99,6 +99,15 @@ function setupEventListeners() {
     
     shuffleBtn.addEventListener('click', shuffleCat);
     colorSlider.addEventListener('input', handleColorChange);
+
+    // Wire approach cards buttons
+    const viewBtns = document.querySelectorAll('.view-steps');
+    viewBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const type = e.currentTarget.getAttribute('data-type');
+            animateWorkflow(type);
+        });
+    });
 }
 
 // Check if image URL exists
@@ -200,6 +209,50 @@ function handleColorChange(event) {
 function updateBackground(hue) {
     const color = `hsl(${hue}, 100%, 50%)`;
     document.body.style.background = `linear-gradient(135deg, ${color} 0%, hsl(${hue}, 100%, 50%) 100%)`;
+
+    // tint banner artwork slightly to match hue
+    const bannerSvg = document.querySelector('.banner-svg');
+    if (bannerSvg) {
+        bannerSvg.style.filter = `hue-rotate(${hue}deg) saturate(1.05) brightness(0.95)`;
+    }
+}
+
+// Animate a short, interactive workflow visualization
+function animateWorkflow(type) {
+    const demo = document.getElementById('workflowDemo');
+    if (!demo) return;
+    // Clear previous
+    demo.innerHTML = '';
+
+    const steps = (type === 'agentic') ? [
+        { label: 'Detectar', sub: 'Escanea issues' },
+        { label: 'Analizar', sub: 'Contexto + prior.' },
+        { label: 'Planificar', sub: 'Generar tareas' },
+        { label: 'Ejecutar', sub: 'Acciones autónomas' },
+        { label: 'Reportar', sub: 'Resumen y PR' }
+    ] : [
+        { label: 'Trigger', sub: 'Push / PR' },
+        { label: 'Copilot CLI', sub: 'Sugerencia local' },
+        { label: 'Commit', sub: 'Cambios generados' },
+        { label: 'Action', sub: 'CI / CD' }
+    ];
+
+    const stepsRow = document.createElement('div');
+    stepsRow.className = 'workflow-steps';
+    demo.appendChild(stepsRow);
+
+    // Create step elements hidden, then reveal sequentially
+    steps.forEach((s, i) => {
+        const el = document.createElement('div');
+        el.className = 'step';
+        el.innerHTML = `<span class="label">${s.label}</span><span class="sub">${s.sub}</span>`;
+        stepsRow.appendChild(el);
+        // reveal with delay
+        setTimeout(() => el.classList.add('visible'), 200 + i * 350);
+    });
+
+    // Provide brief ARIA announcement
+    demo.setAttribute('aria-label', `Mostrando flujo: ${type}`);
 }
 
 // Update color value display
@@ -210,15 +263,19 @@ function updateColorValue(hue) {
 
 // Additional: Log event interactions
 const shuffleBtn = document.getElementById('shuffleBtn');
-shuffleBtn.addEventListener('click', () => {
-    console.log(`[${new Date().toLocaleTimeString()}] Shuffle button clicked`);
-});
+if (shuffleBtn) {
+    shuffleBtn.addEventListener('click', () => {
+        console.log(`[${new Date().toLocaleTimeString()}] Shuffle button clicked`);
+    });
+}
 
-const colorSlider = document.getElementById('colorSlider');
-colorSlider.addEventListener('change', () => {
-    const hue = colorSlider.value;
-    console.log(`[${new Date().toLocaleTimeString()}] Background color changed to ${hue}°`);
-});
+const colorSliderEl = document.getElementById('colorSlider');
+if (colorSliderEl) {
+    colorSliderEl.addEventListener('change', () => {
+        const hue = colorSliderEl.value;
+        console.log(`[${new Date().toLocaleTimeString()}] Background color changed to ${hue}°`);
+    });
+}
 
 // Accessibility: keyboard support
 document.addEventListener('keydown', (event) => {
