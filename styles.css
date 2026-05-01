@@ -215,6 +215,18 @@ body {
     border: 2px solid rgba(88, 166, 255, 0.3);
 }
 
+.octocat-info {
+    font-size: 1.2rem;
+    color: var(--accent-color);
+    font-weight: 600;
+    margin: 20px 0;
+    padding: 15px;
+    background: rgba(88, 166, 255, 0.1);
+    border-left: 4px solid var(--accent-color);
+    border-radius: 4px;
+    min-height: 30px;
+}
+
 .cat-emoji svg {
     width: 100%;
     height: 100%;

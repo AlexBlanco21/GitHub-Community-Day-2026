@@ -1,9 +1,88 @@
-// Octocat variations
+// Classic Octocats from https://blog.jakelee.co.uk/what-on-earth-are-octocats/#classic-octocats
 const octocats = [
-    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="#0d1117" stroke="#58a6ff" stroke-width="2"/><circle cx="20" cy="24" r="6" fill="#58a6ff"/><circle cx="44" cy="24" r="6" fill="#58a6ff"/><path d="M32 40 Q24 48 20 44" stroke="#58a6ff" stroke-width="2" fill="none"/><path d="M32 40 Q40 48 44 44" stroke="#58a6ff" stroke-width="2" fill="none"/><rect x="26" y="50" width="4" height="8" fill="#58a6ff"/><rect x="34" y="50" width="4" height="8" fill="#58a6ff"/></svg>',
-    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="#1f6feb" stroke="#58a6ff" stroke-width="2"/><circle cx="20" cy="26" r="5" fill="#ffd700"/><circle cx="44" cy="26" r="5" fill="#ffd700"/><path d="M32 38 Q26 46 22 42" stroke="#ffd700" stroke-width="2" fill="none"/><path d="M32 38 Q38 46 42 42" stroke="#ffd700" stroke-width="2" fill="none"/><rect x="28" y="48" width="3" height="10" fill="#ffd700"/><rect x="36" y="48" width="3" height="10" fill="#ffd700"/></svg>',
-    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="#0d1117" stroke="#58a6ff" stroke-width="2"/><circle cx="20" cy="24" r="6" fill="#58a6ff"/><circle cx="44" cy="24" r="6" fill="#58a6ff"/><polygon points="24,38 32,48 40,38" fill="#58a6ff"/><circle cx="32" cy="50" r="3" fill="#58a6ff"/></svg>'
+    { name: 'Original', number: 1 },
+    { name: 'Class Act', number: 2 },
+    { name: 'Octobi Wan Catnobi', number: 3 },
+    { name: 'Puppeteer', number: 4 },
+    { name: 'Scottocat', number: 5 },
+    { name: 'Benevocats', number: 6 },
+    { name: 'Forktocat', number: 7 },
+    { name: 'Repo', number: 8 },
+    { name: 'Setuptocat', number: 9 },
+    { name: 'Socialite', number: 10 },
+    { name: 'Drupalcat', number: 11 },
+    { name: 'Pythocat', number: 12 },
+    { name: 'Founding Father', number: 13 },
+    { name: 'Bouncer', number: 14 },
+    { name: 'Octonaut', number: 15 },
+    { name: 'Trekkie', number: 16 },
+    { name: 'Monroe', number: 17 },
+    { name: 'Hubot', number: 18 },
+    { name: 'Swagtocat', number: 19 },
+    { name: 'Wilson', number: 20 },
+    { name: 'Spocktocat', number: 21 },
+    { name: 'Jean-Luc Picat', number: 22 },
+    { name: 'Inspectocat', number: 23 },
+    { name: 'Ironcat', number: 24 },
+    { name: 'Agendacat', number: 25 },
+    { name: 'Octoclark Kentocat', number: 26 },
+    { name: 'Okal-Eltocat', number: 27 },
+    { name: 'Pac-Man Cats', number: 28 },
+    { name: 'Total Eclipse of the Octocat', number: 29 },
+    { name: 'Constructocat', number: 30 },
+    { name: 'Collabocats', number: 31 },
+    { name: 'Supportcat', number: 32 },
+    { name: 'Cherryontop-o-cat', number: 33 },
+    { name: 'Chellocat', number: 34 },
+    { name: 'X-tocat', number: 35 },
+    { name: 'Jenktocat', number: 36 },
+    { name: 'Poptocat', number: 37 },
+    { name: 'Scarletteocat', number: 38 },
+    { name: 'Cloud', number: 39 },
+    { name: 'Dodgetocat', number: 40 },
+    { name: 'Not Octocat', number: 41 },
+    { name: 'Bear Cavalry', number: 43 },
+    { name: 'Spectrocat', number: 44 },
+    { name: 'Octdrey Catburn', number: 45 },
+    { name: 'Nyantocat', number: 46 },
+    { name: 'Shoptocat', number: 47 },
+    { name: 'Oktobercat', number: 48 },
+    { name: 'Visionary', number: 49 },
+    { name: 'Riddlocat', number: 50 },
+    { name: 'Hipster Partycat', number: 51 },
+    { name: "Where's Waldocat", number: 52 },
+    { name: 'Father Timeout', number: 53 },
+    { name: 'Grim Repo', number: 54 },
+    { name: 'Octocat De Los Muertos', number: 55 },
+    { name: 'Baracktocat', number: 56 },
+    { name: 'Octotron', number: 57 },
+    { name: 'Plumber', number: 58 },
+    { name: 'Linktocat', number: 59 },
+    { name: 'Megacat', number: 60 },
+    { name: 'Thanktocat', number: 61 },
+    { name: 'Ordered Listocat', number: 62 },
+    { name: 'Saint Nicktocat', number: 63 },
+    { name: 'Nemesis', number: 64 },
+    { name: 'Defunktocat', number: 65 },
+    { name: 'Dojocat', number: 66 },
+    { name: 'Doctocat Brown', number: 67 },
+    { name: 'Adventure Cat', number: 68 },
+    { name: 'Strongbadtocat', number: 69 },
+    { name: 'Codercat', number: 70 },
+    { name: 'Electrocat', number: 71 },
+    { name: 'Snow Octocat', number: 72 },
+    { name: 'Momtocat', number: 73 },
+    { name: '20% Cooler Octocat', number: 74 },
+    { name: 'Red Polo', number: 75 },
+    { name: 'Heisencat', number: 76 },
+    { name: 'Octofez', number: 77 },
+    { name: 'Droidtocat', number: 78 },
+    { name: 'Minion', number: 79 },
+    { name: 'Homercat', number: 80 },
+    { name: 'Murakamicat', number: 81 },
+    { name: 'Deckfailcat', number: 82 }
 ];
+
 let currentCatIndex = 0;
 
 // Initialize
@@ -31,10 +110,20 @@ function shuffleCat() {
         shuffleBtn.style.transform = 'scale(1)';
     }, 100);
 
-    // Change cat emoji
-    currentCatIndex = (currentCatIndex + 1) % octocats.length;
+    // Pick a random octocat
+    const randomIndex = Math.floor(Math.random() * octocats.length);
+    const selectedOctocat = octocats[randomIndex];
+    currentCatIndex = randomIndex;
+
+    // Update the display
     const catEmoji = document.getElementById('catEmoji');
-    catEmoji.innerHTML = octocats[currentCatIndex];
+    catEmoji.textContent = '🐙';
+    
+    // Display octocat information
+    const octocatInfo = document.getElementById('octocatInfo');
+    if (octocatInfo) {
+        octocatInfo.textContent = `#${selectedOctocat.number}: ${selectedOctocat.name}`;
+    }
     
     // Trigger bounce animation
     catEmoji.style.animation = 'none';
@@ -43,7 +132,7 @@ function shuffleCat() {
     }, 10);
 
     // Log to console
-    console.log(`Octocat changed to variation ${currentCatIndex + 1}`);
+    console.log(`Octocat changed to #${selectedOctocat.number}: ${selectedOctocat.name}`);
 }
 
 // Handle color slider change
