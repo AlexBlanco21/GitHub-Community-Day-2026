@@ -1,8 +1,8 @@
 # GitHub Pages Configuration
 # Configuración de GitHub Pages para el sitio
 
-# Theme
-theme: jekyll-theme-slate
+# Theme (optional, using custom CSS instead)
+# theme: jekyll-theme-slate
 
 # Site settings
 title: GitHub Community Day 2026 - Perú
@@ -14,9 +14,6 @@ repository: AlexBlanco21/GitHub-Community-Day-2026
 # Build settings
 source: ./
 destination: ./_site
-keep_files:
-  - public
-  - assets
 
 # Collections
 collections:
@@ -45,12 +42,10 @@ exclude:
   - node_modules
   - Gemfile
   - Gemfile.lock
-  - README.md
-
-# Include in build
-include:
   - public
-  - assets
+  - CONTRIBUTING.md
+  - PROJECT_SUMMARY.md
+  - VISUAL_GUIDE.md
 
 # Plugins
 plugins:
