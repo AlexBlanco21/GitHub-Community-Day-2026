@@ -1,0 +1,67 @@
+# GitHub Pages Configuration
+# Configuración de GitHub Pages para el sitio
+
+# Theme
+theme: jekyll-theme-slate
+
+# Site settings
+title: GitHub Community Day 2026 - Perú
+description: Demostrando Workflows Agénticos de GitHub
+
+# GitHub metadata
+repository: AlexBlanco21/GitHub-Community-Day-2026
+
+# Build settings
+source: ./
+destination: ./_site
+keep_files:
+  - public
+  - assets
+
+# Collections
+collections:
+  docs:
+    output: true
+    permalink: /:collection/:path
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: "docs"
+    values:
+      layout: "default"
+
+# Enable kramdown markdown processor
+markdown: kramdown
+kramdown:
+  input: GFM
+  hard_wrap: true
+
+# Exclude from build
+exclude:
+  - .github
+  - .gitignore
+  - node_modules
+  - Gemfile
+  - Gemfile.lock
+  - README.md
+
+# Include in build
+include:
+  - public
+  - assets
+
+# Plugins
+plugins:
+  - jekyll-github-metadata
+  - jekyll-mentions
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-titles-from-headings
+  - jekyll-paginate
+  - jekyll-sitemap
+
+# Pagination
+paginate: 10
+paginate_path: "/page:num/"

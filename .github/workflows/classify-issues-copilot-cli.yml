@@ -1,0 +1,117 @@
+name: Classify Issues with Copilot CLI
+
+on:
+  issues:
+    types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to classify'
+        required: false
+        type: number
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up GitHub CLI
+        run: |
+          gh --version
+          echo "GitHub CLI is ready"
+
+      - name: Classify Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          # Check if issue number is available
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "No issue number provided"
+            exit 1
+          fi
+
+          echo "Processing Issue #${ISSUE_NUMBER}"
+          echo "Title: ${ISSUE_TITLE}"
+          
+          # Analyze the issue content
+          ANALYSIS=$(python3 << 'PYTHON_EOF'
+          import os
+          import json
+
+          title = os.getenv('ISSUE_TITLE', '').lower()
+          body = os.getenv('ISSUE_BODY', '').lower()
+          content = f"{title} {body}"
+
+          classification = {
+            'category': 'suggestion',
+            'labels': ['suggestion']
+          }
+
+          # Bug detection keywords
+          bug_keywords = ['bug', 'error', 'crash', 'fail', 'broken', 'issue', 'problema', 'no funciona', 'falla', 'error ']
+          if any(keyword in content for keyword in bug_keywords):
+            classification['category'] = 'bug'
+            classification['labels'] = ['bug']
+
+          # Feature/Functionality keywords
+          feature_keywords = ['feature', 'add', 'new', 'implement', 'functionality', 'nueva', 'agregar', 'implementar', 'característica']
+          if any(keyword in content for keyword in feature_keywords):
+            classification['category'] = 'functionality'
+            classification['labels'] = ['enhancement', 'feature']
+
+          # Suggestion keywords
+          suggestion_keywords = ['suggest', 'improve', 'improve', 'idea', 'proposal', 'mejorar', 'idea', 'propuesta', 'sugerencia']
+          if any(keyword in content for keyword in suggestion_keywords):
+            classification['category'] = 'suggestion'
+            classification['labels'] = ['suggestion']
+
+          # Discard keywords (duplicate, invalid, etc)
+          discard_keywords = ['duplicate', 'invalid', 'wontfix', 'spam', 'duplicado', 'inválido', 'spam']
+          if any(keyword in content for keyword in discard_keywords):
+            classification['category'] = 'discarded'
+            classification['labels'] = ['wontfix']
+
+          print(json.dumps(classification))
+          PYTHON_EOF
+          )
+
+          echo "Classification result: ${ANALYSIS}"
+
+          # Parse the result
+          CATEGORY=$(echo "${ANALYSIS}" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data['category'])")
+          LABELS=$(echo "${ANALYSIS}" | python3 -c "import sys, json; data=json.load(sys.stdin); print(' '.join(data['labels']))")
+
+          echo "Category: ${CATEGORY}"
+          echo "Labels: ${LABELS}"
+
+          # Add labels to the issue
+          for label in ${LABELS}; do
+            gh issue edit "$ISSUE_NUMBER" --add-label "$label" || echo "Could not add label $label"
+          done
+
+          # Add a comment with the classification
+          gh issue comment "$ISSUE_NUMBER" -b "🤖 **Clasificación Automática**
+
+**Categoría:** \`${CATEGORY}\`
+
+Esta clasificación fue realizada automáticamente usando Copilot CLI. 
+- 🐛 **Bug**: Reportes de errores y defectos
+- 💡 **Sugerencia**: Mejoras y sugerencias  
+- ✨ **Funcionalidad**: Nuevas características
+- ❌ **Descartado**: Issues inválidos o duplicados"
+
+  - name: Log completion
+    run: |
+      echo "✅ Issue classification completed successfully"
+      echo "Issue #${GITHUB_EVENT_NUMBER} has been automatically classified and labeled"
+    env:
+      GITHUB_EVENT_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}

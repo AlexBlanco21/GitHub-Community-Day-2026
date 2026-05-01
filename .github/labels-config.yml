@@ -1,0 +1,91 @@
+# Configuración de Etiquetas para el Repositorio
+# 
+# Esta archivo define las etiquetas predefinidas para clasificar issues y PRs
+# Se puede usar con herramientas como github-label-sync para importar automáticamente
+
+labels:
+  # Tipos de Issues
+  - name: bug
+    color: d73a49
+    description: "🐛 Reportes de errores y defectos"
+  
+  - name: enhancement
+    color: a2eeef
+    description: "✨ Mejoras y nuevas características"
+  
+  - name: feature
+    color: 1f6feb
+    description: "🚀 Nueva funcionalidad solicitada"
+  
+  - name: suggestion
+    color: fbca04
+    description: "💡 Sugerencias y propuestas"
+  
+  - name: wontfix
+    color: ffffff
+    description: "❌ No será corregido/implementado"
+  
+  - name: invalid
+    color: e4e669
+    description: "⚠️ Issue inválido o duplicado"
+  
+  # Estado
+  - name: in-progress
+    color: 0075ca
+    description: "🔄 Actualmente en desarrollo"
+  
+  - name: needs-investigation
+    color: e0e0e0
+    description: "🔍 Requiere más investigación"
+  
+  - name: needs-review
+    color: ffd700
+    description: "👀 Awaiting review"
+  
+  # Prioridades
+  - name: priority-critical
+    color: 000000
+    description: "🔴 Crítica - Arreglar inmediatamente"
+  
+  - name: priority-high
+    color: ff0000
+    description: "🟠 Alta - Arreglar pronto"
+  
+  - name: priority-medium
+    color: ffaa00
+    description: "🟡 Media - Arreglar cuando sea posible"
+  
+  - name: priority-low
+    color: 90ee90
+    description: "🟢 Baja - Nice to have"
+  
+  # Para Principiantes
+  - name: good first issue
+    color: 7057ff
+    description: "👶 Buena para primeros aportes"
+  
+  - name: help wanted
+    color: 008672
+    description: "🆘 Se buscan contribuyentes"
+  
+  # Área de Código
+  - name: area-frontend
+    color: c5def5
+    description: "🎨 Relacionado con el frontend/SPA"
+  
+  - name: area-workflows
+    color: d4c5f9
+    description: "🔧 Relacionado con GitHub Actions"
+  
+  - name: area-documentation
+    color: ffd4c4
+    description: "📚 Cambios en la documentación"
+  
+  # Otros
+  - name: discussion
+    color: fc2929
+    description: "💬 Abierto a discusión"
+  
+  - name: duplicate
+    color: cccccc
+    description: "👯 Duplicado de otro issue"
