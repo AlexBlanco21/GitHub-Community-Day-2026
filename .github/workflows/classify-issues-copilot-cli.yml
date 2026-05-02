@@ -34,10 +34,10 @@ jobs:
           **Body:** ${{ github.event.issue.body }}
 
           Classify this issue into one of these 5 categories:
-          1. Bug (Priority 2): Errors discovered in some functionality
-          2. Critical Fix (Priority 1): Something that must be attended as soon as possible since it is degrading the experience of the page
-          3. New Feature (Priority 3-5): Things the website currently doesn't support and would require new development
-          4. Suggestion (Priority 3-5): Refactorings, frontend changes, design improvements, etc.
+          1. Critical Fix (Priority 1): Something that must be attended as soon as possible since it is degrading the experience of the page
+          2. Bug (Priority 2): Errors discovered in some functionality
+          3. Suggestion (Priority 3): Refactorings, frontend changes, design improvements, etc.
+          4. New Feature (Priority 4 or 5): Things the website currently doesn't support and would require new development. The difference in priority between 4 and 5 can be based on the complexity of the feature and the impact it would have on users.
           5. Non-Valid: Issue content is invalid (empty, random text, numbers only, nonsense, spam)
 
           For Non-Valid issues, return null for priority.
@@ -132,10 +132,10 @@ jobs:
             "**Prioridad:** \`${PRIORITY}/5\`" \
             '' \
             '### Descripción de Categorías:' \
-            '- 🐛 **Bug** (Prioridad 2): Errores descubiertos en alguna funcionalidad' \
             '- ⚠️ **Critical Fix** (Prioridad 1): Algo que debe atenderse de inmediato ya que está degradando la experiencia de la página' \
-            '- ✨ **New Feature** (Prioridad 4): Cosas que el sitio actualmente no soporta y requerirían nuevos desarrollos' \
-            '- 💡 **Suggestion** (Prioridad 3-5): Refactorizaciones, cambios en el frontend, diseño, etc.' \
+            '- 🐛 **Bug** (Prioridad 2): Errores descubiertos en alguna funcionalidad' \
+            '- 💡 **Suggestion** (Prioridad 3): Refactorizaciones, cambios en el frontend, diseño, etc.' \
+            '- ✨ **New Feature** (Prioridad 4 o 5): Cosas que el sitio actualmente no soporta y requerirían nuevos desarrollos' \
             '' \
             'Esta clasificación fue realizada automáticamente usando **Copilot CLI** con la **Skill: classify-issue**.'
           )

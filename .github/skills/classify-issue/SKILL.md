@@ -55,7 +55,7 @@ Keywords: `suggest`, `improve`, `idea`, `proposal`, `refactor`, `mejorar`, `prop
 - **2**: Bugs (functional errors)
 - **3**: Suggestions (lower-priority improvements)
 - **4**: New features (important enhancements)
-- **5**: Features (nice-to-have enhancements)
+- **5**: Features (nice-to-have enhancements) but that are not urgent or require significant development effort
 
 ## Non-Valid Detection Rules
 

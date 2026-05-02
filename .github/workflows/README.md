@@ -9,26 +9,12 @@ Workflow que utiliza **Copilot CLI** para clasificar issues automáticamente.
 
 **Dispara por:**
 - Cuando se crea o edita un issue
-- Manualmente desde Actions
 
 **Acciones:**
 1. Analiza el contenido del issue
 2. Clasifica según: Bug, Feature, Suggestion, Discarded
 3. Agrega etiquetas automáticas
 4. Añade comentario con el resultado
-
-### agentic-classifier.yml
-Workflow completamente autónomo que usa **análisis agéntico** para clasificación inteligente.
-
-**Dispara por:**
-- Cuando se crea o edita un issue
-- Manualmente desde Actions
-
-**Acciones:**
-1. Ejecuta análisis avanzado de contenido
-2. Calcula confianza de clasificación
-3. Agrega múltiples etiquetas si es necesario
-4. Comenta con análisis detallado
 
 ## Configuración Requerida
 
