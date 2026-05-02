@@ -94,18 +94,19 @@ jobs:
             echo "Issue is non-valid, closing it..."
             gh issue edit "$ISSUE_NUMBER" --add-label "invalid" || echo "Could not add label invalid"
             gh issue close "$ISSUE_NUMBER" --reason "not_planned" || echo "Could not close issue"
-            COMMENT_NON_VALID=$(cat <<EOF
-            ❌ **Issue Closed** 
+            COMMENT_NON_VALID=$(cat <<-'EOF'
+            ❌ **Issue Closed**
+
             Esta issue ha sido cerrada automáticamente porque el contenido no es válido.
 
-              ### Razones por las que un issue se considera no válido:
-              - Contenido vacío o solo espacios en blanco
-              - Texto aleatorio o sin coherencia
-              - Solo números o caracteres especiales
-              - Contenido que parece ser spam o irrelevante
+            ### Razones por las que un issue se considera no válido:
+            - Contenido vacío o solo espacios en blanco
+            - Texto aleatorio o sin coherencia
+            - Solo números o caracteres especiales
+            - Contenido que parece ser spam o irrelevante
 
-              Por favor, crea un nuevo issue con una descripción clara y detallada de tu problema, sugerencia o característica."
-              EOF
+            Por favor, crea un nuevo issue con una descripción clara y detallada de tu problema, sugerencia o característica.
+            EOF
             )
             gh issue comment "$ISSUE_NUMBER" -b "$COMMENT_NON_VALID"
             exit 0
@@ -125,7 +126,7 @@ jobs:
           fi
 
           # Add a comment with the classification and priority
-          COMMENT_CLASSIFICATION=$(cat <<EOF
+          COMMENT_CLASSIFICATION=$(cat <<-EOF
           🤖 **Clasificación Automática**
 
           **Categoría:** \`${CATEGORY}\`
@@ -140,7 +141,6 @@ jobs:
           Esta clasificación fue realizada automáticamente usando **Copilot CLI** con la **Skill: classify-issue**.
           EOF
           )
-
           gh issue comment "$ISSUE_NUMBER" -b "$COMMENT_CLASSIFICATION"
 
       - name: Log completion
