@@ -49,61 +49,22 @@ jobs:
           }
           EOF
           
-          # Run Copilot CLI and capture output
-          COPILOT_OUTPUT=$(copilot -p "$(cat /tmp/classify_prompt.txt)" --allow-tool=write --no-ask-user 2>&1)
+          # Run Copilot CLI and capture output to file
+          copilot -p "$(cat /tmp/classify_prompt.txt)" --allow-tool=write --no-ask-user > /tmp/copilot_output.txt 2>&1
+          
           echo "=== Copilot Output ==="
-          echo "$COPILOT_OUTPUT"
+          cat /tmp/copilot_output.txt
           echo "=== End Output ==="
           
-          # Extract JSON using Python - handles nested objects properly
-          python3 << 'PYTHON_EOF'
-          import sys
-          import json
-          import re
-          
-          output = """$COPILOT_OUTPUT"""
-          
-          # Find all JSON-like strings in the output
-          # Look for patterns starting with { and ending with }
-          json_pattern = r'\{[^{}]*(?:\[[^\]]*\][^{}]*)*\}'
-          matches = re.finditer(json_pattern, output, re.DOTALL)
-          
-          classification_json = None
-          for match in matches:
-              candidate = match.group(0)
-              try:
-                  parsed = json.loads(candidate)
-                  # Check if it has required keys
-                  if 'category' in parsed and 'priority' in parsed and 'labels' in parsed:
-                      classification_json = candidate
-                      break
-              except json.JSONDecodeError:
-                  continue
-          
-          # If not found with regex, try to find and fix malformed JSON
-          if not classification_json:
-              # Find the first { and last }
-              start_idx = output.find('{')
-              end_idx = output.rfind('}')
-              if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                  candidate = output[start_idx:end_idx+1]
-                  try:
-                      parsed = json.loads(candidate)
-                      if 'category' in parsed and 'priority' in parsed and 'labels' in parsed:
-                          classification_json = candidate
-                  except json.JSONDecodeError:
-                      pass
-          
-          if classification_json:
-              print(classification_json)
-          else:
-              print('{"category": "unknown", "priority": null, "labels": []}')
-          PYTHON_EOF
-          ) > /tmp/classification.json
+          # Extract JSON from the output file using grep
+          # Look for lines that contain valid JSON with category, priority, and labels
+          grep -oE '\{[^}]*"category"[^}]*"priority"[^}]*"labels"[^}]*\}' /tmp/copilot_output.txt > /tmp/classification.json 2>/dev/null || \
+          grep -oE '\{.*\}' /tmp/copilot_output.txt | tail -1 > /tmp/classification.json 2>/dev/null || \
+          echo '{"category": "unknown", "priority": null, "labels": []}' > /tmp/classification.json
           
           echo "Extracted JSON:"
           cat /tmp/classification.json
-          echo "$COPILOT_OUTPUT" >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/copilot_output.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Apply Classification and Labels
         env:
