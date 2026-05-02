@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Classify Issue with Copilot CLI and Skill
-        uses: austenstone/copilot-cli@3.0
+        uses: austenstone/copilot-cli@v3
         id: classify
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
