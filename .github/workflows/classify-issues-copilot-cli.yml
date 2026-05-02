@@ -3,14 +3,9 @@ name: Classify Issues with Copilot CLI
 on:
   issues:
     types: [opened, edited]
-  workflow_dispatch:
-    inputs:
-      issue_number:
-        description: 'Issue number to classify'
-        required: false
-        type: number
 
 permissions:
+  copilot-requests: write
   issues: write
   contents: read
 
@@ -21,97 +16,97 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up GitHub CLI
-        run: |
-          gh --version
-          echo "GitHub CLI is ready"
+      - name: Classify Issue with Copilot CLI and Skill
+        uses: austenstone/copilot-cli@3.0
+        id: classify
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Using the classify-issue skill, please analyze and classify the following GitHub issue:
 
-      - name: Classify Issue
+            **Issue #${{ github.event.issue.number }}**
+            **Title:** ${{ github.event.issue.title }}
+            **Body:** ${{ github.event.issue.body }}
+
+            Classify this issue into one of these 5 categories:
+            1. 🐛 **Bug** (Priority 2): Errors discovered in some functionality
+            2. ⚠️ **Critical Fix** (Priority 1): Something that must be attended as soon as possible since it is degrading the experience of the page
+            3. ✨ **New Feature** (Priority 3-5): Things the website currently doesn't support and would require new development
+            4. 💡 **Suggestion** (Priority 3-5): Refactorings, frontend changes, design improvements, etc.
+            5. ❌ **Non-Valid**: Issue content is invalid (empty, random text, numbers only, nonsense, spam)
+
+            For Non-Valid issues, return null for priority.
+            Return ONLY a valid JSON object with these exact keys (no markdown, no explanation):
+            {
+              "category": "bug|critical fix|new feature|suggestion|non-valid",
+              "priority": 1-5 or null,
+              "labels": ["label1", "label2"]
+            }
+
+      - name: Apply Classification and Labels
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          CLASSIFICATION: ${{ steps.classify.outputs.result }}
         run: |
-          # Check if issue number is available
-          if [ -z "$ISSUE_NUMBER" ]; then
-            echo "No issue number provided"
-            exit 1
-          fi
-
-          echo "Processing Issue #${ISSUE_NUMBER}"
-          echo "Title: ${ISSUE_TITLE}"
-          
-          # Analyze the issue content
-          ANALYSIS=$(python3 << 'PYTHON_EOF'
-          import os
-          import json
-
-          title = os.getenv('ISSUE_TITLE', '').lower()
-          body = os.getenv('ISSUE_BODY', '').lower()
-          content = f"{title} {body}"
-
-          classification = {
-            'category': 'suggestion',
-            'labels': ['suggestion']
-          }
-
-          # Bug detection keywords
-          bug_keywords = ['bug', 'error', 'crash', 'fail', 'broken', 'issue', 'problema', 'no funciona', 'falla', 'error ']
-          if any(keyword in content for keyword in bug_keywords):
-            classification['category'] = 'bug'
-            classification['labels'] = ['bug']
-
-          # Feature/Functionality keywords
-          feature_keywords = ['feature', 'add', 'new', 'implement', 'functionality', 'nueva', 'agregar', 'implementar', 'característica']
-          if any(keyword in content for keyword in feature_keywords):
-            classification['category'] = 'functionality'
-            classification['labels'] = ['enhancement', 'feature']
-
-          # Suggestion keywords
-          suggestion_keywords = ['suggest', 'improve', 'improve', 'idea', 'proposal', 'mejorar', 'idea', 'propuesta', 'sugerencia']
-          if any(keyword in content for keyword in suggestion_keywords):
-            classification['category'] = 'suggestion'
-            classification['labels'] = ['suggestion']
-
-          # Discard keywords (duplicate, invalid, etc)
-          discard_keywords = ['duplicate', 'invalid', 'wontfix', 'spam', 'duplicado', 'inválido', 'spam']
-          if any(keyword in content for keyword in discard_keywords):
-            classification['category'] = 'discarded'
-            classification['labels'] = ['wontfix']
-
-          print(json.dumps(classification))
-          PYTHON_EOF
-          )
-
-          echo "Classification result: ${ANALYSIS}"
-
-          # Parse the result
-          CATEGORY=$(echo "${ANALYSIS}" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data['category'])")
-          LABELS=$(echo "${ANALYSIS}" | python3 -c "import sys, json; data=json.load(sys.stdin); print(' '.join(data['labels']))")
+          # Parse the classification result
+          CATEGORY=$(echo "${CLASSIFICATION}" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('category', 'unknown'))")
+          PRIORITY=$(echo "${CLASSIFICATION}" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('priority', 'null'))")
+          LABELS=$(echo "${CLASSIFICATION}" | python3 -c "import sys, json; data=json.load(sys.stdin); print(' '.join(data.get('labels', [])))")
 
           echo "Category: ${CATEGORY}"
+          echo "Priority: ${PRIORITY}"
           echo "Labels: ${LABELS}"
 
-          # Add labels to the issue
+          # Check if issue is non-valid
+          if [ "${CATEGORY}" = "non-valid" ]; then
+            echo "Issue is non-valid, closing it..."
+            gh issue edit "$ISSUE_NUMBER" --add-label "invalid" || echo "Could not add label invalid"
+            gh issue close "$ISSUE_NUMBER" --reason "not_planned" || echo "Could not close issue"
+            gh issue comment "$ISSUE_NUMBER" -b "❌ **Issue Cerrado** 
+
+              Esta issue ha sido cerrada automáticamente porque el contenido no es válido.
+
+              ### Razones por las que un issue se considera no válido:
+              - Contenido vacío o solo espacios en blanco
+              - Texto aleatorio o sin coherencia
+              - Solo números o caracteres especiales
+              - Contenido que parece ser spam o irrelevante
+
+              Por favor, crea un nuevo issue con una descripción clara y detallada de tu problema, sugerencia o característica."
+            exit 0
+          fi
+
+          # Process valid issues
           for label in ${LABELS}; do
-            gh issue edit "$ISSUE_NUMBER" --add-label "$label" || echo "Could not add label $label"
+            if [ -n "$label" ]; then
+              gh issue edit "$ISSUE_NUMBER" --add-label "$label" || echo "Could not add label $label"
+            fi
           done
 
-          # Add a comment with the classification
+          # Add priority label
+          if [ "${PRIORITY}" != "null" ] && [ -n "${PRIORITY}" ]; then
+            PRIORITY_LABEL="priority-${PRIORITY}"
+            gh issue edit "$ISSUE_NUMBER" --add-label "$PRIORITY_LABEL" || echo "Could not add label $PRIORITY_LABEL"
+          fi
+
+          # Add a comment with the classification and priority
           gh issue comment "$ISSUE_NUMBER" -b "🤖 **Clasificación Automática**
 
-**Categoría:** \`${CATEGORY}\`
+          **Categoría:** \`${CATEGORY}\`
+          **Prioridad:** \`${PRIORITY}/5\`
 
-Esta clasificación fue realizada automáticamente usando Copilot CLI. 
-- 🐛 **Bug**: Reportes de errores y defectos
-- 💡 **Sugerencia**: Mejoras y sugerencias  
-- ✨ **Funcionalidad**: Nuevas características
-- ❌ **Descartado**: Issues inválidos o duplicados"
+          ### Descripción de Categorías:
+          - 🐛 **Bug** (Prioridad 2): Errores descubiertos en alguna funcionalidad
+          - ⚠️ **Critical Fix** (Prioridad 1): Algo que debe atenderse de inmediato ya que está degradando la experiencia de la página
+          - ✨ **New Feature** (Prioridad 4): Cosas que el sitio actualmente no soporta y requerirían nuevos desarrollos
+          - 💡 **Suggestion** (Prioridad 3-5): Refactorizaciones, cambios en el frontend, diseño, etc.
 
-  - name: Log completion
-    run: |
-      echo "✅ Issue classification completed successfully"
-      echo "Issue #${GITHUB_EVENT_NUMBER} has been automatically classified and labeled"
-    env:
-      GITHUB_EVENT_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          Esta clasificación fue realizada automáticamente usando **Copilot CLI** con la **Skill: classify-issue**."
+
+      - name: Log completion
+        run: |
+          echo "✅ Issue classification completed successfully"
+          echo "Issue #${ISSUE_NUMBER} has been automatically classified and labeled"
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
