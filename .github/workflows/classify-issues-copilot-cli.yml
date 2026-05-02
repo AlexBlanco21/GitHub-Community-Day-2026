@@ -49,13 +49,26 @@ jobs:
           }
           EOF
           
-          copilot -p "$(cat /tmp/classify_prompt.txt)" --allow-tool=write --no-ask-user
+          # Run Copilot CLI and capture output
+          COPILOT_OUTPUT=$(copilot -p "$(cat /tmp/classify_prompt.txt)" --allow-tool=write --no-ask-user 2>&1)
+          echo "$COPILOT_OUTPUT"
           
-          # Extract JSON from summary.md and save to file for next step
-          if [ -f summary.md ]; then
-            grep -oP '```json\K(.|\n)*?(?=```)|{.*}' summary.md | tail -1 > /tmp/classification.json
-            cat /tmp/classification.json >> "$GITHUB_STEP_SUMMARY"
+          # Extract JSON from output - look for lines that match JSON pattern
+          echo "$COPILOT_OUTPUT" | grep -oE '{[^{}]*"category"[^{}]*}' > /tmp/classification.json || true
+          
+          # If extraction failed, try a more flexible approach
+          if [ ! -s /tmp/classification.json ]; then
+            echo "$COPILOT_OUTPUT" | grep -oE '{.*"category".*"priority".*"labels".*}' > /tmp/classification.json || true
           fi
+          
+          # If still no result, try to find any JSON object
+          if [ ! -s /tmp/classification.json ]; then
+            echo "$COPILOT_OUTPUT" | python3 -c "import sys, json, re; text=sys.stdin.read(); match=re.search(r'\{[^{}]*\}', text); print(match.group(0) if match else '')" > /tmp/classification.json || true
+          fi
+          
+          echo "Classification JSON:"
+          cat /tmp/classification.json
+          echo "$COPILOT_OUTPUT" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Apply Classification and Labels
         env:
