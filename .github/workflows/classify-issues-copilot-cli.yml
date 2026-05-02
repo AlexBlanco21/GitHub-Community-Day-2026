@@ -22,39 +22,55 @@ jobs:
         run: npm install -g @github/copilot
 
       - name: Run Copilot CLI
+        id: classify
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
-          copilot -p "Using the classify-issue skill, please analyze and classify the following GitHub issue:
+          cat > /tmp/classify_prompt.txt << 'EOF'
+          Using the classify-issue skill, please analyze and classify the following GitHub issue:
 
-            **Issue #${{ github.event.issue.number }}**
-            **Title:** ${{ github.event.issue.title }}
-            **Body:** ${{ github.event.issue.body }}
+          **Issue #${{ github.event.issue.number }}**
+          **Title:** ${{ github.event.issue.title }}
+          **Body:** ${{ github.event.issue.body }}
 
-            Classify this issue into one of these 5 categories:
-            1. 🐛 **Bug** (Priority 2): Errors discovered in some functionality
-            2. ⚠️ **Critical Fix** (Priority 1): Something that must be attended as soon as possible since it is degrading the experience of the page
-            3. ✨ **New Feature** (Priority 3-5): Things the website currently doesn't support and would require new development
-            4. 💡 **Suggestion** (Priority 3-5): Refactorings, frontend changes, design improvements, etc.
-            5. ❌ **Non-Valid**: Issue content is invalid (empty, random text, numbers only, nonsense, spam)
+          Classify this issue into one of these 5 categories:
+          1. Bug (Priority 2): Errors discovered in some functionality
+          2. Critical Fix (Priority 1): Something that must be attended as soon as possible since it is degrading the experience of the page
+          3. New Feature (Priority 3-5): Things the website currently doesn't support and would require new development
+          4. Suggestion (Priority 3-5): Refactorings, frontend changes, design improvements, etc.
+          5. Non-Valid: Issue content is invalid (empty, random text, numbers only, nonsense, spam)
 
-            For Non-Valid issues, return null for priority.
-            Return ONLY a valid JSON object with these exact keys (no markdown, no explanation):
-            {
-              "category": "bug|critical fix|new feature|suggestion|non-valid",
-              "priority": 1-5 or null,
-              "labels": ["label1", "label2"]
-            }. 
-            
-            Write the details to summary.md" --allow-tool=write --no-ask-user
-          cat summary.md >> "$GITHUB_STEP_SUMMARY"
+          For Non-Valid issues, return null for priority.
+          Return ONLY a valid JSON object with these exact keys (no markdown, no explanation):
+          {
+            "category": "bug|critical fix|new feature|suggestion|non-valid",
+            "priority": 1-5 or null,
+            "labels": ["label1", "label2"]
+          }
+          EOF
+          
+          copilot -p "$(cat /tmp/classify_prompt.txt)" --allow-tool=write --no-ask-user
+          
+          # Extract JSON from summary.md and save to file for next step
+          if [ -f summary.md ]; then
+            grep -oP '```json\K(.|\n)*?(?=```)|{.*}' summary.md | tail -1 > /tmp/classification.json
+            cat /tmp/classification.json >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Apply Classification and Labels
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          CLASSIFICATION: ${{ steps.classify.outputs.result }}
         run: |
+          # Read the classification from the file created by previous step
+          if [ ! -f /tmp/classification.json ]; then
+            echo "Classification file not found"
+            exit 1
+          fi
+          
+          CLASSIFICATION=$(cat /tmp/classification.json)
+          echo "Classification: ${CLASSIFICATION}"
+          
           # Parse the classification result
           CATEGORY=$(echo "${CLASSIFICATION}" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('category', 'unknown'))")
           PRIORITY=$(echo "${CLASSIFICATION}" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('priority', 'null'))")
@@ -69,9 +85,9 @@ jobs:
             echo "Issue is non-valid, closing it..."
             gh issue edit "$ISSUE_NUMBER" --add-label "invalid" || echo "Could not add label invalid"
             gh issue close "$ISSUE_NUMBER" --reason "not_planned" || echo "Could not close issue"
-            gh issue comment "$ISSUE_NUMBER" -b "❌ **Issue Cerrado** 
-
-              Esta issue ha sido cerrada automáticamente porque el contenido no es válido.
+            COMMENT_NON_VALID=$(cat <<EOF
+            ❌ **Issue Closed** 
+            Esta issue ha sido cerrada automáticamente porque el contenido no es válido.
 
               ### Razones por las que un issue se considera no válido:
               - Contenido vacío o solo espacios en blanco
@@ -80,6 +96,9 @@ jobs:
               - Contenido que parece ser spam o irrelevante
 
               Por favor, crea un nuevo issue con una descripción clara y detallada de tu problema, sugerencia o característica."
+              EOF
+            )
+            gh issue comment "$ISSUE_NUMBER" -b "$COMMENT_NON_VALID"
             exit 0
           fi
 
@@ -97,7 +116,8 @@ jobs:
           fi
 
           # Add a comment with the classification and priority
-          gh issue comment "$ISSUE_NUMBER" -b "🤖 **Clasificación Automática**
+          COMMENT_CLASSIFICATION=$(cat <<EOF
+          🤖 **Clasificación Automática**
 
           **Categoría:** \`${CATEGORY}\`
           **Prioridad:** \`${PRIORITY}/5\`
@@ -108,7 +128,11 @@ jobs:
           - ✨ **New Feature** (Prioridad 4): Cosas que el sitio actualmente no soporta y requerirían nuevos desarrollos
           - 💡 **Suggestion** (Prioridad 3-5): Refactorizaciones, cambios en el frontend, diseño, etc.
 
-          Esta clasificación fue realizada automáticamente usando **Copilot CLI** con la **Skill: classify-issue**."
+          Esta clasificación fue realizada automáticamente usando **Copilot CLI** con la **Skill: classify-issue**.
+          EOF
+          )
+
+          gh issue comment "$ISSUE_NUMBER" -b "$COMMENT_CLASSIFICATION"
 
       - name: Log completion
         run: |
