@@ -45,28 +45,63 @@ jobs:
           {
             "category": "bug|critical fix|new feature|suggestion|non-valid",
             "priority": 1-5 or null,
-            "labels": ["label1", "label2"]
+            "labels": ["label"]
           }
           EOF
           
           # Run Copilot CLI and capture output
           COPILOT_OUTPUT=$(copilot -p "$(cat /tmp/classify_prompt.txt)" --allow-tool=write --no-ask-user 2>&1)
+          echo "=== Copilot Output ==="
           echo "$COPILOT_OUTPUT"
+          echo "=== End Output ==="
           
-          # Extract JSON from output - look for lines that match JSON pattern
-          echo "$COPILOT_OUTPUT" | grep -oE '{[^{}]*"category"[^{}]*}' > /tmp/classification.json || true
+          # Extract JSON using Python - handles nested objects properly
+          python3 << 'PYTHON_EOF'
+          import sys
+          import json
+          import re
           
-          # If extraction failed, try a more flexible approach
-          if [ ! -s /tmp/classification.json ]; then
-            echo "$COPILOT_OUTPUT" | grep -oE '{.*"category".*"priority".*"labels".*}' > /tmp/classification.json || true
-          fi
+          output = """$COPILOT_OUTPUT"""
           
-          # If still no result, try to find any JSON object
-          if [ ! -s /tmp/classification.json ]; then
-            echo "$COPILOT_OUTPUT" | python3 -c "import sys, json, re; text=sys.stdin.read(); match=re.search(r'\{[^{}]*\}', text); print(match.group(0) if match else '')" > /tmp/classification.json || true
-          fi
+          # Find all JSON-like strings in the output
+          # Look for patterns starting with { and ending with }
+          json_pattern = r'\{[^{}]*(?:\[[^\]]*\][^{}]*)*\}'
+          matches = re.finditer(json_pattern, output, re.DOTALL)
           
-          echo "Classification JSON:"
+          classification_json = None
+          for match in matches:
+              candidate = match.group(0)
+              try:
+                  parsed = json.loads(candidate)
+                  # Check if it has required keys
+                  if 'category' in parsed and 'priority' in parsed and 'labels' in parsed:
+                      classification_json = candidate
+                      break
+              except json.JSONDecodeError:
+                  continue
+          
+          # If not found with regex, try to find and fix malformed JSON
+          if not classification_json:
+              # Find the first { and last }
+              start_idx = output.find('{')
+              end_idx = output.rfind('}')
+              if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                  candidate = output[start_idx:end_idx+1]
+                  try:
+                      parsed = json.loads(candidate)
+                      if 'category' in parsed and 'priority' in parsed and 'labels' in parsed:
+                          classification_json = candidate
+                  except json.JSONDecodeError:
+                      pass
+          
+          if classification_json:
+              print(classification_json)
+          else:
+              print('{"category": "unknown", "priority": null, "labels": []}')
+          PYTHON_EOF
+          ) > /tmp/classification.json
+          
+          echo "Extracted JSON:"
           cat /tmp/classification.json
           echo "$COPILOT_OUTPUT" >> "$GITHUB_STEP_SUMMARY"
 
