@@ -93,7 +93,7 @@ jobs:
           if [ "${CATEGORY}" = "non-valid" ]; then
             echo "Issue is non-valid, closing it..."
             gh issue edit "$ISSUE_NUMBER" --add-label "invalid" || echo "Could not add label invalid"
-            gh issue close "$ISSUE_NUMBER" --reason "not_planned" || echo "Could not close issue"
+            gh issue close "$ISSUE_NUMBER" --reason "not planned" || echo "Could not close issue"
             COMMENT_NON_VALID=$(printf '%s\n' \
               '❌ **Issue Closed**' \
               '' \
