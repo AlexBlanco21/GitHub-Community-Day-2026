@@ -13,15 +13,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Classify Issue with Copilot CLI and Skill
-        uses: austenstone/copilot-cli@v3
-        id: classify
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-          prompt: |
-            Using the classify-issue skill, please analyze and classify the following GitHub issue:
+      - name: Set up Node.js environment
+        uses: actions/setup-node@v4
+
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Run Copilot CLI
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          copilot -p "Using the classify-issue skill, please analyze and classify the following GitHub issue:
 
             **Issue #${{ github.event.issue.number }}**
             **Title:** ${{ github.event.issue.title }}
@@ -40,7 +44,10 @@ jobs:
               "category": "bug|critical fix|new feature|suggestion|non-valid",
               "priority": 1-5 or null,
               "labels": ["label1", "label2"]
-            }
+            }. 
+            
+            Write the details to summary.md" --allow-tool=write --no-ask-user
+          cat summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Apply Classification and Labels
         env:
