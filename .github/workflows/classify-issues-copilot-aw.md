@@ -16,7 +16,7 @@ permissions:
 engine:
   id: copilot
   version: latest                       # defaults to latest
-  model: auto                         # example override
+  model: claude-haiku-4.5                       # example override
 
 network:
   allowed:
