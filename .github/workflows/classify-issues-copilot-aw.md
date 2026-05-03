@@ -13,6 +13,11 @@ on:
 permissions:
   contents: read
 
+engine:
+  id: copilot
+  version: latest                       # defaults to latest
+  model: auto                         # example override
+
 network:
   allowed:
       - defaults
