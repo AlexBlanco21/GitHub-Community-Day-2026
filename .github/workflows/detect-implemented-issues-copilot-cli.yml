@@ -1,0 +1,247 @@
+name: Detect Implemented Issues with Copilot CLI
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js environment
+        uses: actions/setup-node@v4
+
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Get all open issues
+        id: get_issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get all open issues and save to JSON
+          gh issue list \
+            --state open \
+            --limit 100 \
+            --json number,title,body,createdAt,labels \
+            > /tmp/open_issues.json
+          
+          echo "Found $(jq length /tmp/open_issues.json) open issues"
+          cat /tmp/open_issues.json
+
+      - name: Run Copilot CLI for Implementation Detection
+        id: detect
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          # Read open issues
+          ISSUES=$(cat /tmp/open_issues.json)
+          
+          cat > /tmp/detect_prompt.txt << 'EOF'
+          Using the detect-issue-implementation skill, please analyze the following open GitHub issues and determine which ones have already been implemented:
+
+          **Repository Context:**
+          - Repository: ${{ github.repository }}
+          - Branch: ${{ github.ref_name }}
+
+          **Open Issues to Analyze:**
+          EOF
+          
+          # Add each issue to the prompt
+          echo "$ISSUES" | jq -r '.[] | "**Issue #\(.number)**: \(.title)\n\(.body // "No description")\n---"' >> /tmp/detect_prompt.txt
+          
+          cat >> /tmp/detect_prompt.txt << 'EOF'
+
+          For each issue, search for:
+          1. Merged PRs with "Closes #X", "Fixes #X", "Resolves #X", "Implements #X" references
+          2. Commits mentioning the issue number (#X) in their messages
+          3. Related recent commits that implement the requested feature/fix
+          4. Implementation dates to verify it's reasonably recent
+
+          For each issue that has been implemented (HIGH or MEDIUM confidence):
+          - Issue number
+          - Commit SHA and link
+          - Commit message
+          - PR number (if applicable)
+          - Confidence level (high/medium)
+
+          Return ONLY a valid JSON array with these exact keys (no markdown, no explanation):
+          [
+            {
+              "issue_number": 123,
+              "implemented": true|false,
+              "confidence": "high|medium|low|none",
+              "commit_sha": "abc1234",
+              "commit_message": "...",
+              "pr_number": 456 | null,
+              "reason": "direct_reference|semantic_match|commit_mention"
+            }
+          ]
+          EOF
+          
+          echo "=== Detection Prompt ==="
+          cat /tmp/detect_prompt.txt
+          echo "=== End Prompt ==="
+          
+          # Run Copilot CLI and capture output
+          copilot -p "$(cat /tmp/detect_prompt.txt)" --allow-tool=write --no-ask-user > /tmp/copilot_output.txt 2>&1
+          
+          echo "=== Copilot Output ==="
+          cat /tmp/copilot_output.txt
+          echo "=== End Output ==="
+          
+          # Extract JSON array from output
+          grep -oE '\[[^]]*\]' /tmp/copilot_output.txt > /tmp/detection_results.json 2>/dev/null || \
+          grep -oE '\[\{.*\}\]' /tmp/copilot_output.txt > /tmp/detection_results.json 2>/dev/null || \
+          echo '[]' > /tmp/detection_results.json
+          
+          echo "Extracted JSON:"
+          cat /tmp/detection_results.json
+
+      - name: Process Detection Results and Close Issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Read the detection results
+          if [ ! -f /tmp/detection_results.json ]; then
+            echo "Detection results file not found"
+            exit 1
+          fi
+          
+          RESULTS=$(cat /tmp/detection_results.json)
+          echo "Detection Results: ${RESULTS}"
+          
+          # Initialize counters
+          TOTAL_PROCESSED=0
+          TOTAL_CLOSED=0
+          HIGH_CONFIDENCE=0
+          MEDIUM_CONFIDENCE=0
+          
+          # Get repository and commit URL info
+          REPO_URL="https://github.com/${{ github.repository }}"
+          
+          # Process each result
+          echo "$RESULTS" | jq -r '.[] | @json' | while read -r line; do
+            ITEM=$(echo "$line" | jq .)
+            
+            ISSUE_NUMBER=$(echo "$ITEM" | jq -r '.issue_number')
+            IMPLEMENTED=$(echo "$ITEM" | jq -r '.implemented')
+            CONFIDENCE=$(echo "$ITEM" | jq -r '.confidence')
+            COMMIT_SHA=$(echo "$ITEM" | jq -r '.commit_sha')
+            COMMIT_MESSAGE=$(echo "$ITEM" | jq -r '.commit_message')
+            PR_NUMBER=$(echo "$ITEM" | jq -r '.pr_number')
+            REASON=$(echo "$ITEM" | jq -r '.reason')
+            
+            echo "Processing Issue #${ISSUE_NUMBER}: implemented=${IMPLEMENTED}, confidence=${CONFIDENCE}"
+            
+            # Only close if high or medium confidence and implemented
+            if [ "${IMPLEMENTED}" = "true" ] && ([ "${CONFIDENCE}" = "high" ] || [ "${CONFIDENCE}" = "medium" ]); then
+              echo "Closing Issue #${ISSUE_NUMBER} with confidence: ${CONFIDENCE}"
+              
+              # Close the issue
+              gh issue close "$ISSUE_NUMBER" --reason completed 2>/dev/null || \
+              gh issue edit "$ISSUE_NUMBER" --state closed 2>/dev/null || \
+              echo "Could not close issue $ISSUE_NUMBER"
+              
+              # Build the comment
+              COMMIT_LINK="${REPO_URL}/commit/${COMMIT_SHA}"
+              COMMENT=$(printf '%s\n' \
+                '✅ **Issue Implementado**' \
+                '' \
+                '> Este issue ya ha sido resuelto e implementado en el código.' \
+                '' \
+                '### 📦 Referencia de Implementación:'
+              )
+              
+              if [ -n "$COMMIT_SHA" ] && [ "$COMMIT_SHA" != "null" ]; then
+                COMMENT="${COMMENT}"$'\n'"- **🔗 Commit**: [\`${COMMIT_SHA:0:7}\`](${COMMIT_LINK})"
+              fi
+              
+              if [ -n "$COMMIT_MESSAGE" ] && [ "$COMMIT_MESSAGE" != "null" ]; then
+                COMMENT="${COMMENT}"$'\n'"- **💬 Mensaje**: _${COMMIT_MESSAGE}_"
+              fi
+              
+              if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+                PR_LINK="${REPO_URL}/pull/${PR_NUMBER}"
+                COMMENT="${COMMENT}"$'\n'"- **🔀 Pull Request**: [#${PR_NUMBER}](${PR_LINK})"
+              fi
+              
+              COMMENT="${COMMENT}"$'\n''- **✔️ Confianza**: '"${CONFIDENCE}"$'\n'"- **🎯 Tipo**: ${REASON}"$'\n\n''### ℹ️ Detalles\n''Este issue fue identificado automáticamente como implementado y ha sido cerrado."$'\n\n''---\n''*Cerrado automáticamente por **Copilot CLI** con la **Skill: detect-issue-implementation***'
+              
+              
+              # Add comment
+              gh issue comment "$ISSUE_NUMBER" -b "$COMMENT" || \
+              echo "Could not add comment to issue $ISSUE_NUMBER"
+              
+              TOTAL_CLOSED=$((TOTAL_CLOSED + 1))
+              
+              if [ "${CONFIDENCE}" = "high" ]; then
+                HIGH_CONFIDENCE=$((HIGH_CONFIDENCE + 1))
+              else
+                MEDIUM_CONFIDENCE=$((MEDIUM_CONFIDENCE + 1))
+              fi
+            else
+              echo "Skipping Issue #${ISSUE_NUMBER}: implemented=${IMPLEMENTED}, confidence=${CONFIDENCE}"
+            fi
+            
+            TOTAL_PROCESSED=$((TOTAL_PROCESSED + 1))
+          done
+          
+          # Save summary to step summary
+          {
+            echo "## 📊 Reporte de Detección de Issues Implementados"
+            echo ""
+            echo "### ✅ Resultados"
+            echo "| Métrica | Cantidad | Estado |"
+            echo "|---------|----------|--------|"
+            echo "| 📝 Issues Procesados | ${TOTAL_PROCESSED} | ✔️ |"
+            echo "| 🔒 Issues Cerrados | ${TOTAL_CLOSED} | ✔️ |"
+            echo "| 🟢 Alta Confianza | ${HIGH_CONFIDENCE} | ✔️ |"
+            echo "| 🟡 Confianza Media | ${MEDIUM_CONFIDENCE} | ✔️ |"
+            echo ""
+            if [ "${TOTAL_CLOSED}" -gt 0 ]; then
+              CLOSE_PERCENTAGE=$((TOTAL_CLOSED * 100 / TOTAL_PROCESSED))
+              echo "### 📈 Eficiencia: \`${CLOSE_PERCENTAGE}%\` de issues implementados detectados"
+            fi
+            echo ""
+            echo "<details>"
+            echo "<summary>📋 Detalles de Detección (JSON)</summary>"
+            echo ""
+            echo \"\`\`\`json"
+            cat /tmp/detection_results.json
+            echo \"\`\`\`"
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+          
+          echo "✅ Detección de issues implementados completada"
+          echo "📝 Total Procesados: ${TOTAL_PROCESSED}"
+          echo "🔒 Total Cerrados: ${TOTAL_CLOSED}"
+          echo "🟢 Alta Confianza: ${HIGH_CONFIDENCE}"
+          echo "🟡 Confianza Media: ${MEDIUM_CONFIDENCE}"
+
+      - name: Log completion
+        run: |
+          {
+            echo "## 🎉 Detección de Issues Completada"
+            echo ""
+            echo "**Estado**: ✅ Finalizado correctamente"
+            echo ""
+            echo "### 📖 Ver Resumen:"
+            echo "Consulte la sección **Step Summary** arriba para un reporte detallado."
+            echo ""
+            echo "### 🔍 Próximos Pasos:"
+            echo "- Revise los issues cerrados"
+            echo "- Verifique las referencias de commits"
+            echo "- Ajuste la confianza si es necesario"
+          } >> "$GITHUB_STEP_SUMMARY"
+          
+          echo "✅ Detección completada exitosamente"

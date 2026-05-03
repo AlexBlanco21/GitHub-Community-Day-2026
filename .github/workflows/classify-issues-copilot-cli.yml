@@ -64,7 +64,6 @@ jobs:
           
           echo "Extracted JSON:"
           cat /tmp/classification.json
-          cat /tmp/copilot_output.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Apply Classification and Labels
         env:
@@ -95,17 +94,21 @@ jobs:
             gh issue edit "$ISSUE_NUMBER" --add-label "invalid" || echo "Could not add label invalid"
             gh issue close "$ISSUE_NUMBER" --reason "not planned" || echo "Could not close issue"
             COMMENT_NON_VALID=$(printf '%s\n' \
-              '❌ **Issue Closed**' \
+              '❌ **Issue Cerrado - Contenido No Válido**' \
               '' \
-              'Esta issue ha sido cerrada automáticamente porque el contenido no es válido.' \
+              '> Esta issue ha sido cerrada automáticamente porque el contenido no es válido.' \
               '' \
-              '### Razones por las que un issue se considera no válido:' \
-              '- Contenido vacío o solo espacios en blanco' \
-              '- Texto aleatorio o sin coherencia' \
-              '- Solo números o caracteres especiales' \
-              '- Contenido que parece ser spam o irrelevante' \
+              '### 📋 Razones por las que un issue se considera no válido:' \
+              '- ❌ Contenido vacío o solo espacios en blanco' \
+              '- ❌ Texto aleatorio o sin coherencia' \
+              '- ❌ Solo números o caracteres especiales' \
+              '- ❌ Contenido que parece ser spam o irrelevante' \
               '' \
-              'Por favor, crea un nuevo issue con una descripción clara y detallada de tu problema, sugerencia o característica.'
+              '### ✏️ Por favor:' \
+              'Crea un nuevo issue con una descripción clara y detallada de tu problema, sugerencia o característica.' \
+              '' \
+              '---' \
+              '*Esta acción fue realizada automáticamente por **Copilot CLI** con la **Skill: classify-issue***'
             )
             gh issue comment "$ISSUE_NUMBER" -b "$COMMENT_NON_VALID"
             exit 0
@@ -128,22 +131,35 @@ jobs:
           COMMENT_CLASSIFICATION=$(printf '%s\n' \
             '🤖 **Clasificación Automática**' \
             '' \
-            "**Categoría:** \`${CATEGORY}\`" \
-            "**Prioridad:** \`${PRIORITY}/5\`" \
+            '> **Categoría:** '"${CATEGORY}"'' \
+            '> **Prioridad:** '"⭐ ${PRIORITY}/5"'' \
             '' \
-            '### Descripción de Categorías:' \
-            '- ⚠️ **Critical Fix** (Prioridad 1): Algo que debe atenderse de inmediato ya que está degradando la experiencia de la página' \
-            '- 🐛 **Bug** (Prioridad 2): Errores descubiertos en alguna funcionalidad' \
-            '- 💡 **Suggestion** (Prioridad 3): Refactorizaciones, cambios en el frontend, diseño, etc.' \
-            '- ✨ **New Feature** (Prioridad 4 o 5): Cosas que el sitio actualmente no soporta y requerirían nuevos desarrollos' \
+            '### 📚 Explicación:' \
+            '| Nivel | Categoría | Descripción |' \
+            '|-------|-----------|-------------|' \
+            '| 🔴 1 | **Critical Fix** | Debe atenderse de inmediato - degradando experiencia |' \
+            '| 🟠 2 | **Bug** | Errores en funcionalidad |' \
+            '| 🟡 3 | **Suggestion** | Refactorizaciones y mejoras |' \
+            '| 🟢 4-5 | **New Feature** | Nuevas características requeridas |' \
             '' \
-            'Esta clasificación fue realizada automáticamente usando **Copilot CLI** con la **Skill: classify-issue**.'
+            '---' \
+            '*Clasificación automática realizada por **Copilot CLI** con la **Skill: classify-issue***' \
           )
           gh issue comment "$ISSUE_NUMBER" -b "$COMMENT_CLASSIFICATION"
 
       - name: Log completion
         run: |
-          echo "✅ Issue classification completed successfully"
-          echo "Issue #${ISSUE_NUMBER} has been automatically classified and labeled"
+          {
+            echo "## ✅ Clasificación Completada"
+            echo ""
+            echo "**Issue #${ISSUE_NUMBER}** ha sido procesado exitosamente"
+            echo ""
+            echo "### 📊 Resumen:"
+            echo "- ✔️ Issue analizado y clasificado"
+            echo "- ✔️ Etiquetas aplicadas"
+            echo "- ✔️ Comentario de clasificación agregado"
+            echo ""
+            echo "Ver comentario en el issue para más detalles."
+          } >> "$GITHUB_STEP_SUMMARY"
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
