@@ -108,10 +108,9 @@ jobs:
           if jq empty /tmp/copilot_output.txt >/dev/null 2>&1; then
             cp /tmp/copilot_output.txt /tmp/detection_results.json
             echo "Valid JSON detected"
-            else
+          else
               echo "Invalid JSON output from Copilot"
               echo '[]' > /tmp/detection_results.json
-            fi
           fi
 
           echo "Extracted JSON:"
