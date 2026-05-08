@@ -1,8 +1,8 @@
 name: Detect Implemented Issues with Copilot CLI
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
+  #schedule:
+    #- cron: '0 */6 * * *'  # Every 6 hours
   workflow_dispatch:
 
 permissions:
@@ -115,6 +115,10 @@ jobs:
       - name: Process Detection Results and Close Issues
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COPILOT_MODEL: ${{ vars.COPILOT_MODEL }}
+          COPILOT_PROVIDER_TYPE: ${{ vars.COPILOT_PROVIDER_TYPE }}
+          COPILOT_PROVIDER_BASE_URL: ${{ secrets.COPILOT_PROVIDER_BASE_URL }}
+          COPILOT_PROVIDER_API_KEY: ${{ secrets.COPILOT_PROVIDER_API_KEY }}
         run: |
           # Read the detection results
           if [ ! -f /tmp/detection_results.json ]; then
