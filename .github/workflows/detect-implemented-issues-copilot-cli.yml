@@ -44,6 +44,10 @@ jobs:
         id: detect
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          COPILOT_MODEL: ${{ vars.COPILOT_MODEL }}
+          COPILOT_PROVIDER_TYPE: ${{ vars.COPILOT_PROVIDER_TYPE }}
+          COPILOT_PROVIDER_BASE_URL: ${{ secrets.COPILOT_PROVIDER_BASE_URL }}
+          COPILOT_PROVIDER_API_KEY: ${{ secrets.COPILOT_PROVIDER_API_KEY }}
         run: |
           # Read open issues
           ISSUES=$(cat /tmp/open_issues.json)
@@ -93,32 +97,43 @@ jobs:
           echo "=== Detection Prompt ==="
           cat /tmp/detect_prompt.txt
           echo "=== End Prompt ==="
-          
-          # Run Copilot CLI and capture output
+
+          # Run Copilot CLI using the documented workflow invocation path.
           copilot -p "$(cat /tmp/detect_prompt.txt)" --allow-tool=write --no-ask-user > /tmp/copilot_output.txt 2>&1
-          
+
           echo "=== Copilot Output ==="
           cat /tmp/copilot_output.txt
           echo "=== End Output ==="
-          
+
           if jq empty /tmp/copilot_output.txt >/dev/null 2>&1; then
-          cp /tmp/copilot_output.txt /tmp/detection_results.json
-          echo "Valid JSON detected"
+            cp /tmp/copilot_output.txt /tmp/detection_results.json
+            echo "Valid JSON detected"
           else
-            echo "Invalid JSON output from Copilot"
-            echo '[]' > /tmp/detection_results.json
+            if python3 - <<'PY' >/tmp/detection_results.json 2>/dev/null; then
+            import json
+            import re
+            from pathlib import Path
+
+            text = Path('/tmp/copilot_output.txt').read_text(encoding='utf-8')
+            matches = re.findall(r'\[[\s\S]*\]', text)
+            if not matches:
+                raise SystemExit(1)
+            json.loads(matches[-1])
+            print(matches[-1])
+            PY
+              echo "Extracted JSON array from Copilot output"
+            else
+              echo "Invalid JSON output from Copilot"
+              echo '[]' > /tmp/detection_results.json
+            fi
           fi
-          
+
           echo "Extracted JSON:"
           cat /tmp/detection_results.json
 
       - name: Process Detection Results and Close Issues
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COPILOT_MODEL: ${{ vars.COPILOT_MODEL }}
-          COPILOT_PROVIDER_TYPE: ${{ vars.COPILOT_PROVIDER_TYPE }}
-          COPILOT_PROVIDER_BASE_URL: ${{ secrets.COPILOT_PROVIDER_BASE_URL }}
-          COPILOT_PROVIDER_API_KEY: ${{ secrets.COPILOT_PROVIDER_API_KEY }}
         run: |
           # Read the detection results
           if [ ! -f /tmp/detection_results.json ]; then
@@ -239,8 +254,10 @@ jobs:
             echo "| 🟡 Confianza Media | ${MEDIUM_CONFIDENCE} | ✔️ |"
             echo ""
             if [ "${TOTAL_CLOSED}" -gt 0 ]; then
-              CLOSE_PERCENTAGE=$((TOTAL_CLOSED * 100 / TOTAL_PROCESSED))
-              echo "### 📈 Eficiencia: \`${CLOSE_PERCENTAGE}%\` de issues implementados detectados"
+              if [ "${TOTAL_PROCESSED}" -gt 0 ]; then
+                CLOSE_PERCENTAGE=$((TOTAL_CLOSED * 100 / TOTAL_PROCESSED))
+                echo "### 📈 Eficiencia: \`${CLOSE_PERCENTAGE}%\` de issues implementados detectados"
+              fi
             fi
             echo ""
             echo "<details>"
