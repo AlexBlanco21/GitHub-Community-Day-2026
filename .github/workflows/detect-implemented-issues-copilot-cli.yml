@@ -18,6 +18,9 @@ jobs:
 
       - name: Set up Node.js environment
         uses: actions/setup-node@v4
+      
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Install Copilot CLI
         run: npm install -g @github/copilot
@@ -98,10 +101,13 @@ jobs:
           cat /tmp/copilot_output.txt
           echo "=== End Output ==="
           
-          # Extract JSON array from output
-          grep -oE '\[[^]]*\]' /tmp/copilot_output.txt > /tmp/detection_results.json 2>/dev/null || \
-          grep -oE '\[\{.*\}\]' /tmp/copilot_output.txt > /tmp/detection_results.json 2>/dev/null || \
-          echo '[]' > /tmp/detection_results.json
+          if jq empty /tmp/copilot_output.txt >/dev/null 2>&1; then
+          cp /tmp/copilot_output.txt /tmp/detection_results.json
+          echo "Valid JSON detected"
+          else
+            echo "Invalid JSON output from Copilot"
+            echo '[]' > /tmp/detection_results.json
+          fi
           
           echo "Extracted JSON:"
           cat /tmp/detection_results.json
@@ -113,11 +119,20 @@ jobs:
           # Read the detection results
           if [ ! -f /tmp/detection_results.json ]; then
             echo "Detection results file not found"
-            exit 1
+            echo "[]" > /tmp/detection_results.json
           fi
           
           RESULTS=$(cat /tmp/detection_results.json)
           echo "Detection Results: ${RESULTS}"
+          
+          # Check if we have results
+          RESULT_COUNT=$(echo "$RESULTS" | jq 'length' 2>/dev/null || echo "0")
+          echo "Found ${RESULT_COUNT} detection results"
+          
+          if [ "$RESULT_COUNT" = "0" ] || [ "$RESULT_COUNT" = "null" ]; then
+            echo "No issues were detected as implemented"
+            exit 0
+          fi
           
           # Initialize counters
           TOTAL_PROCESSED=0
@@ -129,71 +144,83 @@ jobs:
           REPO_URL="https://github.com/${{ github.repository }}"
           
           # Process each result
-          echo "$RESULTS" | jq -r '.[] | @json' | while read -r line; do
-            ITEM=$(echo "$line" | jq .)
-            
-            ISSUE_NUMBER=$(echo "$ITEM" | jq -r '.issue_number')
-            IMPLEMENTED=$(echo "$ITEM" | jq -r '.implemented')
-            CONFIDENCE=$(echo "$ITEM" | jq -r '.confidence')
-            COMMIT_SHA=$(echo "$ITEM" | jq -r '.commit_sha')
-            COMMIT_MESSAGE=$(echo "$ITEM" | jq -r '.commit_message')
-            PR_NUMBER=$(echo "$ITEM" | jq -r '.pr_number')
-            REASON=$(echo "$ITEM" | jq -r '.reason')
-            
+          while read -r line; do
+            ISSUE_NUMBER=$(echo "$line" | jq -r '.issue_number')
+            IMPLEMENTED=$(echo "$line" | jq -r '.implemented')
+            CONFIDENCE=$(echo "$line" | jq -r '.confidence')
+            COMMIT_SHA=$(echo "$line" | jq -r '.commit_sha')
+            COMMIT_MESSAGE=$(echo "$line" | jq -r '.commit_message')
+            PR_NUMBER=$(echo "$line" | jq -r '.pr_number')
+            REASON=$(echo "$line" | jq -r '.reason')
+
             echo "Processing Issue #${ISSUE_NUMBER}: implemented=${IMPLEMENTED}, confidence=${CONFIDENCE}"
-            
+
             # Only close if high or medium confidence and implemented
-            if [ "${IMPLEMENTED}" = "true" ] && ([ "${CONFIDENCE}" = "high" ] || [ "${CONFIDENCE}" = "medium" ]); then
+            if [ "$IMPLEMENTED" = "true" ] && { [ "$CONFIDENCE" = "high" ] || [ "$CONFIDENCE" = "medium" ]; }; then
+
               echo "Closing Issue #${ISSUE_NUMBER} with confidence: ${CONFIDENCE}"
-              
+
               # Close the issue
-              gh issue close "$ISSUE_NUMBER" --reason completed 2>/dev/null || \
-              gh issue edit "$ISSUE_NUMBER" --state closed 2>/dev/null || \
-              echo "Could not close issue $ISSUE_NUMBER"
-              
-              # Build the comment
+              if ! gh issue close "$ISSUE_NUMBER" --reason completed; then
+                echo "Could not close issue $ISSUE_NUMBER"
+                continue
+              fi
+
+              # Build links
               COMMIT_LINK="${REPO_URL}/commit/${COMMIT_SHA}"
-              COMMENT=$(printf '%s\n' \
-                '✅ **Issue Implementado**' \
-                '' \
-                '> Este issue ya ha sido resuelto e implementado en el código.' \
-                '' \
-                '### 📦 Referencia de Implementación:'
+
+              # Build comment
+              COMMENT=$(cat <<EOF
+              ✅ **Issue Implementado**
+
+              > Este issue ya ha sido resuelto e implementado en el código.
+
+              ### 📦 Referencia de Implementación:
+              EOF
               )
-              
+
               if [ -n "$COMMIT_SHA" ] && [ "$COMMIT_SHA" != "null" ]; then
                 COMMENT="${COMMENT}"$'\n'"- **🔗 Commit**: [\`${COMMIT_SHA:0:7}\`](${COMMIT_LINK})"
               fi
-              
+
               if [ -n "$COMMIT_MESSAGE" ] && [ "$COMMIT_MESSAGE" != "null" ]; then
                 COMMENT="${COMMENT}"$'\n'"- **💬 Mensaje**: _${COMMIT_MESSAGE}_"
               fi
-              
+
               if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
                 PR_LINK="${REPO_URL}/pull/${PR_NUMBER}"
                 COMMENT="${COMMENT}"$'\n'"- **🔀 Pull Request**: [#${PR_NUMBER}](${PR_LINK})"
               fi
-              
-              COMMENT="${COMMENT}"$'\n''- **✔️ Confianza**: '"${CONFIDENCE}"$'\n'"- **🎯 Tipo**: ${REASON}"$'\n\n''### ℹ️ Detalles\n''Este issue fue identificado automáticamente como implementado y ha sido cerrado."$'\n\n''---\n''*Cerrado automáticamente por **Copilot CLI** con la **Skill: detect-issue-implementation***'
-              
-              
+
+              COMMENT="${COMMENT}"$'\n'"- **✔️ Confianza**: ${CONFIDENCE}"
+              COMMENT="${COMMENT}"$'\n'"- **🎯 Tipo**: ${REASON}"
+
+              COMMENT="${COMMENT}"$'\n\n'"### ℹ️ Detalles"
+              COMMENT="${COMMENT}"$'\n'"Este issue fue identificado automáticamente como implementado y ha sido cerrado."
+
+              COMMENT="${COMMENT}"$'\n\n---"
+              COMMENT="${COMMENT}"$'\n'"*Cerrado automáticamente por **Copilot CLI***"
+
               # Add comment
-              gh issue comment "$ISSUE_NUMBER" -b "$COMMENT" || \
-              echo "Could not add comment to issue $ISSUE_NUMBER"
-              
+              if ! gh issue comment "$ISSUE_NUMBER" -b "$COMMENT"; then
+                echo "Could not add comment to issue $ISSUE_NUMBER"
+              fi
+
               TOTAL_CLOSED=$((TOTAL_CLOSED + 1))
-              
-              if [ "${CONFIDENCE}" = "high" ]; then
+
+              if [ "$CONFIDENCE" = "high" ]; then
                 HIGH_CONFIDENCE=$((HIGH_CONFIDENCE + 1))
               else
                 MEDIUM_CONFIDENCE=$((MEDIUM_CONFIDENCE + 1))
               fi
+
             else
               echo "Skipping Issue #${ISSUE_NUMBER}: implemented=${IMPLEMENTED}, confidence=${CONFIDENCE}"
             fi
-            
+
             TOTAL_PROCESSED=$((TOTAL_PROCESSED + 1))
-          done
+
+          done < <(echo "$RESULTS" | jq -c '.[]')
           
           # Save summary to step summary
           {
@@ -215,9 +242,9 @@ jobs:
             echo "<details>"
             echo "<summary>📋 Detalles de Detección (JSON)</summary>"
             echo ""
-            echo \"\`\`\`json"
+            echo '```json'
             cat /tmp/detection_results.json
-            echo \"\`\`\`"
+            echo '```'
             echo ""
             echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
