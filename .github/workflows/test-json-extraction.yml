@@ -104,33 +104,43 @@ jobs:
 
           decoder = json.JSONDecoder()
 
-          found = False
+          best_candidate = None
+          best_length = -1
 
           for i, ch in enumerate(text):
-              # JSON can only start with [ or {
-              if ch not in '[{':
-                  continue
 
-              try:
-                  obj, end = decoder.raw_decode(text[i:])
+            # JSON containers only
+            if ch not in '[{':
+                continue
 
-                  # Only accept list/dict JSON containers
-                  if isinstance(obj, (list, dict)):
-                      with open(OUTPUT, "w", encoding="utf-8") as out:
-                          json.dump(obj, out, ensure_ascii=False, indent=2)
+            try:
+                obj, end = decoder.raw_decode(text[i:])
 
-                      found = True
-                      print("✅ JSON extracted successfully")
-                      break
+                # Ignore empty arrays/objects
+                if obj in ([], {}):
+                    continue
 
-              except Exception:
-                  pass
+                # Prefer largest valid JSON payload
+                serialized = json.dumps(obj)
 
-          if not found:
-              with open(OUTPUT, "w") as out:
-                  out.write("[]")
+                if len(serialized) > best_length:
+                    best_candidate = obj
+                    best_length = len(serialized)
 
-              print("❌ No valid JSON found")
+            except Exception:
+                continue
+
+          # Save best candidate
+          if best_candidate is not None:
+            with open(OUTPUT, "w", encoding="utf-8") as out:
+                json.dump(best_candidate, out, ensure_ascii=False, indent=2)
+
+            print("✅ Best JSON candidate extracted")
+
+          else:
+            with open(OUTPUT, "w") as out:
+                out.write("[]")
+            print("❌ No valid JSON found")
           PY
 
       - name: Validate JSON
