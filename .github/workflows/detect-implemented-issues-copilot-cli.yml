@@ -115,33 +115,75 @@ jobs:
           cat /tmp/copilot_output.txt
           echo "=== End Output ==="
 
-          # Extract JSON array from output
-          awk 'BEGIN{capture=0} /^\[/{capture=1} capture{print} /^\]/{if(capture) exit}' /tmp/copilot_output.txt > /tmp/copilot_json_candidate.txt
+      - name: Extract JSON Robustly
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
 
-          echo "=== Extracted JSON Candidate ==="
-          cat /tmp/copilot_json_candidate.txt
-          echo "=== End JSON Candidate ==="
+          INPUT = "/tmp/copilot_output.txt"
+          OUTPUT = "/tmp/detection_results.json"
 
-          # Validate JSON
-          if jq empty /tmp/copilot_json_candidate.txt >/dev/null 2>&1; then
-            cp /tmp/copilot_json_candidate.txt /tmp/detection_results.json
-            echo "✅ Valid JSON detected"
-          else
-            echo "❌ Invalid JSON output from Copilot"
+          with open(INPUT, "r", encoding="utf-8", errors="ignore") as f:
+              text = f.read()
 
-            # fallback attempt: extract first JSON array using perl
-            perl -0777 -ne 'print $1 if /(\[[\s\S]*\])/m' /tmp/copilot_output.txt > /tmp/detection_results.json
+          # Remove ANSI escape sequences
+          text = re.sub(r'\x1B\[[0-?]*[ -/]*[@-~]', '', text)
 
-            if jq empty /tmp/detection_results.json >/dev/null 2>&1; then
-              echo "✅ Recovered valid JSON"
-            else
-              echo "❌ Could not recover valid JSON"
-              echo '[]' > /tmp/detection_results.json
-            fi
-          fi
+          decoder = json.JSONDecoder()
 
-          echo "=== Final Detection Results ==="
+          best_candidate = None
+          best_length = -1
+
+          for i, ch in enumerate(text):
+
+            # JSON containers only
+            if ch not in '[{':
+                continue
+
+            try:
+                obj, end = decoder.raw_decode(text[i:])
+
+                # Ignore empty arrays/objects
+                if obj in ([], {}):
+                    continue
+
+                # Prefer largest valid JSON payload
+                serialized = json.dumps(obj)
+
+                if len(serialized) > best_length:
+                    best_candidate = obj
+                    best_length = len(serialized)
+
+            except Exception:
+                continue
+
+          # Save best candidate
+          if best_candidate is not None:
+            with open(OUTPUT, "w", encoding="utf-8") as out:
+                json.dump(best_candidate, out, ensure_ascii=False, indent=2)
+
+            print("✅ Best JSON candidate extracted")
+
+          else:
+            with open(OUTPUT, "w") as out:
+                out.write("[]")
+            print("❌ No valid JSON found")
+          PY
+
+      - name: Validate JSON
+        run: |
+          echo "=== Extracted JSON ==="
           cat /tmp/detection_results.json
+          echo ""
+          echo "=== Validation ==="
+
+          if jq empty /tmp/detection_results.json >/dev/null 2>&1; then
+            echo "✅ Valid JSON"
+          else
+            echo "❌ Invalid JSON"
+            exit 1
+          fi    
 
       - name: Process Detection Results and Close Issues
         env:
