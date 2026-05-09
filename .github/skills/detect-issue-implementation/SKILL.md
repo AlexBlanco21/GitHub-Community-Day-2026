@@ -1,99 +1,130 @@
 # Detect Issue Implementation Skill
 
-**Purpose**: Intelligently detect if a GitHub issue has been implemented and provide implementation references.
+**Purpose**: Intelligently detect whether a GitHub issue has already been implemented by prioritizing direct analysis of the CURRENT source code before checking repository PRs or commits.
 
 ## Overview
 
-This skill analyzes GitHub issues to determine if they have already been implemented by:
-1. Searching for direct PR/commit references using GitHub linking syntax
-2. Analyzing commit messages for issue mentions
-3. Matching issue content with recent code changes
-4. Verifying implementation dates and merge status
+This skill analyzes GitHub issues to determine whether they are already implemented.
+
+The skill MUST:
+
+1. Inspect the current repository source code first
+2. Verify the requested behavior/configuration exists in code
+3. Only if code evidence is insufficient, check direct PR/commit references
+4. Avoid semantic or title-based guessing
+5. Return confidence-based implementation evidence strictly tied to verifiable implementation
 
 ## Usage
 
 This skill is used by the `detect-implemented-issues` workflow to:
 - Process all open issues in a repository
-- Find implementation evidence through multiple search strategies
-- Close issues with high/medium confidence implementation references
+- Verify implementation directly in the current codebase
+- Fallback to explicit PR/commit references only
+- Close issues only when implementation is objectively verifiable
 - Generate detailed implementation summaries
 
 ## Detection Strategies
 
-### Strategy 1: Direct PR References (Highest Priority)
+### Strategy 1: Source Code Implementation Analysis (Highest Priority)
 
-Look for merged PRs with explicit issue linking:
-- `Closes #123`
-- `Fixes #123`
-- `Resolves #123`
-- `Implements #123`
+The FIRST and MOST IMPORTANT step is to inspect the repository source code and determine whether the requested functionality already exists.
+
+This strategy takes absolute priority over all others and should do the following:
+  1. Read the issue title and description to understand the requested behavior
+  2. Extract concrete implementation requirements
+  3. Inspect the repository files directly
+  4. Verify the implementation exists in actual code/configuration/UI logic
+  5. Only return implemented if the requested behavior is observable in source code
 
 **GitHub Tools**: 
 ```
-search_issues("is:pr is:merged closes:${ISSUE_NUMBER}")
-search_issues("is:pr is:merged fixes:${ISSUE_NUMBER}")
+get_file_contents(path)
+search_code(query)
+
 ```
 
-### Strategy 2: Commit Message References
+### Strategy 2: Direct PR or Commit References (Fallback ONLY)
 
-Search commit history for issue mentions:
-- `#123` in commit message
-- `closes #123` in commit message
+ONLY run this strategy if source code verification fails or is inconclusive.Search commit history for issue mentions:
+- `#${ISSUE_NUMBER}` in commit message
+- `closes #${ISSUE_NUMBER}` in commit message
+- `fixes #${ISSUE_NUMBER}` in commit message
+- `resolves #${ISSUE_NUMBER}` in commit message
+- `implements #${ISSUE_NUMBER}` in commit message
 - References in PR body
 
 **GitHub Tools**:
 ```
 list_commits(branch: "main")
 grep commit messages for "#${ISSUE_NUMBER}"
+
 ```
 
-### Strategy 3: Semantic Matching
+### Processing Algorithm
+FUNCTION detect_implementation(issue):
 
-Match issue keywords with recent commits and PRs:
-1. Extract keywords from issue title/description
-2. Search commits from last 6 months for matching keywords
-3. Analyze relevance and match quality
+  1. Extract issue number, title, description
 
-**Example**:
-- Issue: "Add dark mode support"
-- Search: commits with "dark" or "theme" keywords
-- Match: Recent commit "feat: implement dark mode"
+  2. Analyze requested behavior precisely
 
-### Strategy 4: PR History Analysis
+  3. SEARCH CURRENT SOURCE CODE FIRST
+     - inspect components
+     - inspect styles
+     - inspect routes
+     - inspect configs
+     - inspect business logic
 
-Review all merged PRs for related implementations:
-1. Get list of recent merged PRs (last 30 days)
-2. Check PR titles and descriptions for issue relevance
-3. Verify if PR closes any open issues
+  4. IF implementation is verifiably present in code:
+       RETURN {
+         confidence: "high",
+         strategy: "source_code_analysis",
+         evidence: [...]
+       }
 
-**GitHub Tools**:
-```
-search_issues("is:pr is:merged sort:updated-desc")
-```
+  5. ELSE check explicit merged PR references:
+       search_issues("closes #${issue_number}")
+       search_issues("fixes #${issue_number}")
+
+     IF explicit reference found:
+       RETURN {
+         confidence: "medium",
+         strategy: "explicit_pr_reference"
+       }
+
+  6. ELSE check explicit commit references:
+       grep commits for "#${issue_number}"
+
+     IF explicit commit reference found:
+       RETURN {
+         confidence: "medium",
+         strategy: "explicit_commit_reference"
+       }
+
+  7. RETURN {
+       confidence: "low"
+     }
+
+END FUNCTION
 
 ## Confidence Levels
 
 ### High Confidence ✅
-- Merged PR with explicit "Closes #123" / "Fixes #123" reference
-- Commit with clear issue number reference (#123) in main branch
-- Recent implementation (within 2 weeks of search)
-- Clear code changes that directly implement requested feature
+- Implementation is directly observable in current source code
+- Exact files and code snippets can be identified
+- Commit with clear issue number reference (#${issue_number}) in main branch
 
 **Action**: Auto-close with high confidence
 
 ### Medium Confidence ⚠️
-- Issue referenced in PR description or comments
 - Commit mentioning issue number but not explicitly closing
 - Thematic match with recent merged PR
-- Implementation date reasonably recent (within 2 months)
+- Partial implementation observed in code but not fully matching requested behavior
 
-**Action**: Close with medium confidence (may require manual verification)
+**Action**: Do NOT Close but leave an issue comment with medium confidence
 
 ### Low Confidence ❌
-- Indirect references or tenuous semantic matches
-- Very old implementation (older than 3 months)
-- Multiple possible PRs/commits with unclear match
-- No explicit issue reference
+- No explicit references found
+- No source code evidence of implementation
 
 **Action**: Skip - do not auto-close
 
@@ -141,90 +172,50 @@ For each issue being evaluated, gather:
 }
 ```
 
-## Processing Algorithm
-
-```
-FUNCTION detect_implementation(issue):
-  1. Extract issue number, title, description, labels
-  
-  2. Search for direct PR references:
-     IF found merged PR with "closes #${issue_number}":
-       RETURN {confidence: "high", pr: ..., commit: ...}
-  
-  3. Search for commit references:
-     FOR each commit in last 6 months:
-       IF commit message contains "#${issue_number}":
-         IF commit is in main branch:
-           RETURN {confidence: "medium", commit: ...}
-  
-  4. Semantic matching:
-     keywords = extract_keywords(issue.title + issue.description)
-     FOR each keyword:
-       FOR each commit in last 3 months:
-         IF commit.message contains keyword:
-           IF match_score > 0.7:
-             RETURN {confidence: "medium", commit: ...}
-  
-  5. PR history analysis:
-     FOR each merged PR from last 30 days:
-       IF pr.description or pr.title relates to issue:
-         IF match_score > 0.7 and pr.merged:
-           RETURN {confidence: "medium", pr: ...}
-  
-  6. RETURN {confidence: "low"} if no evidence found
-END FUNCTION
-```
-
 ## Edge Cases
 
-### Case 1: Multiple Related PRs
-When multiple PRs reference the same issue:
-- Use the most recent merged PR
-- If dates are close, prefer explicit "Closes" reference over semantic match
+### Case 1: PR Exists But Code Does Not
 
-### Case 2: Partial Implementation
-When issue is partially implemented (multiple subtasks):
-- Check if main functionality is implemented
-- Look for "closes" or "fixes" in any related PR
-- Document which parts are implemented in the comment
+If:
 
-### Case 3: Reverted Implementation
-When a commit is reverted:
-- Check if revert commit exists
-- If reverted, mark as NOT implemented
-- Do not close the issue
+- PR references issue
+- But implementation no longer exists in code
 
-### Case 4: Different Repository
-When implementation is in a different repository:
-- Check cross-repo references in PR/commits
-- Document external implementation
-- Still close with appropriate reference
+Then:
 
-## Keyword Extraction
+  DO NOT close issue
 
-For semantic matching, extract keywords from:
-- Issue title (primary)
-- Issue description (secondary)
-- Issue labels (tertiary)
+Reason:
 
-Examples:
-```
-Issue: "Add authentication"
-Keywords: [authentication, auth, login, signin]
+  Feature may have been reverted
 
-Issue: "Fix memory leak in image processing"
-Keywords: [memory, leak, image, processing, fix, bug]
+### Case 2: Reverted Implementation
 
-Issue: "Dark mode support"
-Keywords: [dark, mode, theme, dark mode, ui]
-```
+If:
 
-## Time Considerations
+- Code implementation removed
+- Revert commit exists
 
-- **Search Window**: Last 6 months of commits
-- **Recent Implementation**: Within 2 weeks (high confidence)
-- **Medium Timeframe**: 2 weeks to 3 months
-- **Stale Implementation**: Older than 3 months (low confidence unless explicit reference)
+Then:
+
+  Mark as NOT implemented
+
+Current codebase state is authoritative.
+
+### Case 3: Partial Implementation
+
+If only part of requested behavior exists:
+
+confidence = medium
+
+Do not auto-close unless core functionality is clearly complete.
+
+## Limitations
+- Only analyzes default branch
+- Does not infer implementation from naming similarity
+- Does not use semantic matching
+- Does not assume merged PR means active implementation
+- Current source code state is the source of truth
 
 ## Error Handling
 
@@ -247,59 +238,41 @@ Keywords: [dark, mode, theme, dark mode, ui]
 
 Before closing an issue, verify:
 
-1. **Issue is still open**: Re-check before closing
-2. **Implementation is recent**: Within 6 months
-3. **Implementation is relevant**: Core feature/bug is addressed
-4. **No conflicting evidence**: No "do not close" comments from maintainers
-5. **Clear reference**: Can trace back to specific PR/commit
+1. Requested behavior exists NOW in current code
+2. Implementation is directly observable
+3. Evidence includes exact files/snippets
+4. No reliance on semantic similarity
+5. Explicit references only for fallback detection
 
 ## Limitations & Constraints
 
-- Only analyzes commits on default branch (main/master)
-- Does not analyze PR descriptions in detail (only titles and explicit linking)
-- Does not track implementation across multiple repositories
-- Semantic matching has accuracy limits (70%+ confidence required)
-- May miss implementations that don't follow standard PR practices
+- Only analyzes default branch
+- Does not infer implementation from naming similarity
+- Does not use semantic matching
+- Does not assume merged PR means active implementation
+- Current source code state is the source of truth
 
 ## Performance Tuning
 
 For large repositories:
 
-1. **Limit search scope**: 
-   - Focus on issues created in last 6 months
-   - Search commits from last 6 months only
-
-2. **Batch processing**:
-   - Process 10-20 issues per workflow run
-   - Use pagination for API calls
-   - Cache results between checks
-
-3. **Timeout settings**:
-   - 30 seconds per issue analysis
-   - 60 second timeout per batch
-   - Overall workflow timeout: 30 minutes
+1. Prioritize likely directories:
+   src/
+   components/
+   pages/
+   styles/
+   api/
+2. Restrict searches:
+   Only relevant file types
+   Only default branch
+3. Cache code search results where possible
 
 ## Success Criteria
 
 The skill is successful when:
-- ✅ Correctly identifies 90%+ of actually-implemented issues
-- ✅ Minimizes false positives (< 10% close rate on not-yet-implemented issues)
-- ✅ Provides clear, actionable implementation references
-- ✅ Completes analysis within timeout limits
-- ✅ Generates detailed reports for review
-
-## Integration with Workflow
-
-The workflow calls this skill to:
-
-```
-For each open issue:
-  result = detect_implementation(issue)
-  
-  if result.confidence == "high" or result.confidence == "medium":
-    close_issue(issue_number)
-    add_comment(issue_number, generate_implementation_comment(result))
-    log_action("closed", issue_number, result)
-  else:
-    log_action("skipped", issue_number, "low_confidence")
-```
+- ✅ Source code is analyzed BEFORE repository history
+- ✅ Issues are closed only with verifiable implementation evidence
+- ✅ False positives are minimized
+- ✅ Semantic guessing is eliminated
+- ✅ Implementation references include exact code evidence
+- ✅ Current repository state is treated as authoritative

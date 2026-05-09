@@ -55,6 +55,24 @@ jobs:
           cat > /tmp/detect_prompt.txt << 'EOF'
           Using the detect-issue-implementation skill, please analyze the following open GitHub issues and determine which ones have already been implemented:
 
+          IMPORTANT RULES:
+          - PRIORITIZE SOURCE CODE ANALYSIS FIRST
+          - The CURRENT CODEBASE STATE is the source of truth
+          - DO NOT use semantic matching
+          - DO NOT infer implementation from PR titles or commit names
+          - ONLY use:
+            1. Direct source code verification
+            2. Explicit PR/commit references as fallback
+
+          An issue should ONLY be considered implemented with HIGH confidence if:
+          - The requested behavior/functionality/configuration can be directly verified in the current source code
+          OR
+          - There is an explicit PR/commit reference such as:
+            - Closes #X
+            - Fixes #X
+            - Resolves #X
+            - Implements #X
+
           **Repository Context:**
           - Repository: ${{ github.repository }}
           - Branch: ${{ github.ref_name }}
@@ -68,17 +86,9 @@ jobs:
           cat >> /tmp/detect_prompt.txt << 'EOF'
 
           For each issue, search for:
-          1. Merged PRs with "Closes #X", "Fixes #X", "Resolves #X", "Implements #X" references
-          2. Commits mentioning the issue number (#X) in their messages
-          3. Related recent commits that implement the requested feature/fix
-          4. Implementation dates to verify it's reasonably recent
-
-          For each issue that has been implemented (HIGH or MEDIUM confidence):
-          - Issue number
-          - Commit SHA and link
-          - Commit message
-          - PR number (if applicable)
-          - Confidence level (high/medium)
+          1. Implementation evidence in the default branch (main/master) of the repository
+          2. Merged PRs with "Closes #X", "Fixes #X", "Resolves #X", "Implements #X" references
+          3. Commits mentioning the issue number (#X) in their messages
 
           Return ONLY a valid JSON array with these exact keys (no markdown, no explanation):
           [
@@ -105,15 +115,32 @@ jobs:
           cat /tmp/copilot_output.txt
           echo "=== End Output ==="
 
-          if jq empty /tmp/copilot_output.txt >/dev/null 2>&1; then
-            cp /tmp/copilot_output.txt /tmp/detection_results.json
-            echo "Valid JSON detected"
+          # Extract JSON array from output
+          sed -n '/^\[/,$p' /tmp/copilot_output.txt > /tmp/copilot_json_candidate.txt
+
+          echo "=== Extracted JSON Candidate ==="
+          cat /tmp/copilot_json_candidate.txt
+          echo "=== End JSON Candidate ==="
+
+          # Validate JSON
+          if jq empty /tmp/copilot_json_candidate.txt >/dev/null 2>&1; then
+            cp /tmp/copilot_json_candidate.txt /tmp/detection_results.json
+            echo "✅ Valid JSON detected"
           else
-              echo "Invalid JSON output from Copilot"
+            echo "❌ Invalid JSON output from Copilot"
+
+            # fallback attempt: extract first JSON array using perl
+            perl -0777 -ne 'print $1 if /(\[[\s\S]*\])/m' /tmp/copilot_output.txt > /tmp/detection_results.json
+
+            if jq empty /tmp/detection_results.json >/dev/null 2>&1; then
+              echo "✅ Recovered valid JSON"
+            else
+              echo "❌ Could not recover valid JSON"
               echo '[]' > /tmp/detection_results.json
+            fi
           fi
 
-          echo "Extracted JSON:"
+          echo "=== Final Detection Results ==="
           cat /tmp/detection_results.json
 
       - name: Process Detection Results and Close Issues
@@ -160,7 +187,7 @@ jobs:
             echo "Processing Issue #${ISSUE_NUMBER}: implemented=${IMPLEMENTED}, confidence=${CONFIDENCE}"
 
             # Only close if high or medium confidence and implemented
-            if [ "$IMPLEMENTED" = "true" ] && { [ "$CONFIDENCE" = "high" ] || [ "$CONFIDENCE" = "medium" ]; }; then
+            if [ "$IMPLEMENTED" = "true" ] && { [ "$CONFIDENCE" = "high" ]; }; then
 
               echo "Closing Issue #${ISSUE_NUMBER} with confidence: ${CONFIDENCE}"
 

@@ -89,7 +89,7 @@ let currentCatIndex = 0;
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
-    updateBackground(210);
+    updateBackground(120);
 });
 
 // Setup event listeners
