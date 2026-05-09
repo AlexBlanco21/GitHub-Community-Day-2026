@@ -11,7 +11,7 @@ The skill MUST:
 1. Inspect the current repository source code first
 2. Verify the requested behavior/configuration exists in code
 3. Only if code evidence is insufficient, check direct PR/commit references
-4. Avoid semantic or title-based guessing
+4. Use controlled semantic verification ONLY when validating whether current source code satisfies the issue requirements
 5. Return confidence-based implementation evidence strictly tied to verifiable implementation
 
 ## Usage
@@ -74,14 +74,16 @@ FUNCTION detect_implementation(issue):
      - inspect configs
      - inspect business logic
 
-  4. IF implementation is verifiably present in code:
-       RETURN {
-         confidence: "high",
-         strategy: "source_code_analysis",
-         evidence: [...]
-       }
+  4. IF implementation behavior clearly and unambiguously   satisfies the issue requirements:
+     RETURN {
+       confidence: "medium",
+       strategy: "source_code_analysis"
+     }
 
-  5. ELSE check explicit merged PR references:
+  5. IF explicit PR/commit references also exist:
+     UPGRADE confidence to "high"
+
+  6. ELSE check explicit merged PR references:
        search_issues("closes #${issue_number}")
        search_issues("fixes #${issue_number}")
 
@@ -91,7 +93,7 @@ FUNCTION detect_implementation(issue):
          strategy: "explicit_pr_reference"
        }
 
-  6. ELSE check explicit commit references:
+  7. ELSE check explicit commit references:
        grep commits for "#${issue_number}"
 
      IF explicit commit reference found:
@@ -100,7 +102,7 @@ FUNCTION detect_implementation(issue):
          strategy: "explicit_commit_reference"
        }
 
-  7. RETURN {
+  8. RETURN {
        confidence: "low"
      }
 
@@ -109,22 +111,41 @@ END FUNCTION
 ## Confidence Levels
 
 ### High Confidence ✅
-- Implementation is directly observable in current source code
-- Exact files and code snippets can be identified
-- Commit with clear issue number reference (#${issue_number}) in main branch
+Only when ONE of these is true:
+
+- Explicit PR/commit reference exists:
+  - Closes #X
+  - Fixes #X
+  - Resolves #X
+  - Implements #X
+
+OR
+
+- The issue requirements map unambiguously to observable current source code behavior
+- AND the implementation is complete
+- AND supporting commits/files clearly correspond to the issue scope
 
 **Action**: Auto-close with high confidence
 
 ### Medium Confidence ⚠️
-- Commit mentioning issue number but not explicitly closing
-- Thematic match with recent merged PR
-- Partial implementation observed in code but not fully matching requested behavior
 
-**Action**: Do NOT Close but leave an issue comment with medium confidence
+Used when implementation likely exists but linkage is inferred.
+
+Examples:
+- Source code strongly satisfies issue behavior
+- Related commits touch relevant files
+- Commit messages are generic
+- Partial implementation exists
+- Semantic verification required
+
+**Action**: Add an issue comment with medium confidence
 
 ### Low Confidence ❌
-- No explicit references found
-- No source code evidence of implementation
+Used when:
+- Evidence is weak
+- Behavior partially matches
+- No relevant code evidence exists
+- Issue intent is ambiguous
 
 **Action**: Skip - do not auto-close
 
@@ -213,7 +234,8 @@ Do not auto-close unless core functionality is clearly complete.
 ## Limitations
 - Only analyzes default branch
 - Does not infer implementation from naming similarity
-- Does not use semantic matching
+- Uses constrained semantic verification ONLY against current source code behavior
+- Does NOT infer implementation purely from PR titles, filenames, or commit naming similarity
 - Does not assume merged PR means active implementation
 - Current source code state is the source of truth
 

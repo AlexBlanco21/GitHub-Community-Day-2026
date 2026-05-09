@@ -56,22 +56,36 @@ jobs:
           Using the detect-issue-implementation skill, please analyze the following open GitHub issues and determine which ones have already been implemented:
 
           IMPORTANT RULES:
-          - PRIORITIZE SOURCE CODE ANALYSIS FIRST
-          - The CURRENT CODEBASE STATE is the source of truth
-          - DO NOT use semantic matching
-          - DO NOT infer implementation from PR titles or commit names
-          - ONLY use:
-            1. Direct source code verification
-            2. Explicit PR/commit references as fallback
 
-          An issue should ONLY be considered implemented with HIGH confidence if:
-          - The requested behavior/functionality/configuration can be directly verified in the current source code
-          OR
-          - There is an explicit PR/commit reference such as:
+          The CURRENT CODEBASE STATE is the primary source of truth.
+
+          Detection confidence must follow these rules:
+
+          HIGH confidence:
+          - Explicit issue references exist in commits or PRs:
             - Closes #X
             - Fixes #X
             - Resolves #X
             - Implements #X
+          - OR the issue requirement can be directly and unambiguously verified in source code.
+
+          MEDIUM confidence:
+          - The requested functionality clearly exists in the current codebase
+          - AND related commits/files strongly suggest implementation
+          - EVEN IF no explicit issue reference exists.
+
+          LOW confidence:
+          - Partial implementation evidence exists
+          - OR semantic similarity is weak/uncertain.
+
+          DO NOT mark issues as HIGH confidence unless evidence is explicit.
+
+          DO NOT invent issue references, PR references, or commit associations.
+
+          If implementation exists but issue linkage is inferred from source code behavior, use:
+          - "implemented": true
+          - "confidence": "medium"
+          - "reason": "semantic_match"
 
           **Repository Context:**
           - Repository: ${{ github.repository }}
@@ -229,7 +243,7 @@ jobs:
             echo "Processing Issue #${ISSUE_NUMBER}: implemented=${IMPLEMENTED}, confidence=${CONFIDENCE}"
 
             # Only close if high or medium confidence and implemented
-            if [ "$IMPLEMENTED" = "true" ] && { [ "$CONFIDENCE" = "high" ]; }; then
+            if [ "$IMPLEMENTED" = "true" ] && { [ "$CONFIDENCE" = "high" ] || [ "$CONFIDENCE" = "medium" ]; }; then
 
               echo "Closing Issue #${ISSUE_NUMBER} with confidence: ${CONFIDENCE}"
 
