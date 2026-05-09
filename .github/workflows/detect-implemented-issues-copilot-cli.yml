@@ -243,14 +243,9 @@ jobs:
               COMMIT_LINK="${REPO_URL}/commit/${COMMIT_SHA}"
 
               # Build comment
-              COMMENT=$(cat <<EOF
-              ✅ **Issue Implementado**
-
-              > Este issue ya ha sido resuelto e implementado en el código.
-
-              ### 📦 Referencia de Implementación:
-              EOF
-              )
+              COMMENT=$'✅ **Issue Implementado**\n\n'
+              COMMENT+=$'> Este issue ya ha sido resuelto e implementado en el código.\n\n'
+              COMMENT+=$'### 📦 Referencia de Implementación:\n'
 
               if [ -n "$COMMIT_SHA" ] && [ "$COMMIT_SHA" != "null" ]; then
                 COMMENT="${COMMENT}"$'\n'"- **🔗 Commit**: [\`${COMMIT_SHA:0:7}\`](${COMMIT_LINK})"
@@ -271,7 +266,7 @@ jobs:
               COMMENT="${COMMENT}"$'\n\n'"### ℹ️ Detalles"
               COMMENT="${COMMENT}"$'\n'"Este issue fue identificado automáticamente como implementado y ha sido cerrado."
 
-              COMMENT="${COMMENT}"$'\n\n---"
+              COMMENT="${COMMENT}"$'\n\n---'
               COMMENT="${COMMENT}"$'\n'"*Cerrado automáticamente por **Copilot CLI***"
 
               # Add comment
