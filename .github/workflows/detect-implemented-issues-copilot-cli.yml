@@ -116,7 +116,7 @@ jobs:
           echo "=== End Output ==="
 
           # Extract JSON array from output
-          sed -n '/^\[/,$p' /tmp/copilot_output.txt > /tmp/copilot_json_candidate.txt
+          awk 'BEGIN{capture=0} /^\[/{capture=1} capture{print} /^\]/{if(capture) exit}' /tmp/copilot_output.txt > /tmp/copilot_json_candidate.txt
 
           echo "=== Extracted JSON Candidate ==="
           cat /tmp/copilot_json_candidate.txt
