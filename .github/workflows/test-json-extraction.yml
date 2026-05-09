@@ -1,0 +1,127 @@
+name: Test Copilot JSON Extraction
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Create Fake Copilot Output
+        run: |
+          cat > /tmp/copilot_output.txt << 'EOF'
+            I’ll inspect the current codebase and repository history for direct evidence, then return only the JSON result.
+
+            ● Search (glob)
+            │ "**/*"
+            └ 21 files found
+
+            ● List pull requests (MCP: github-mcp-server) · owner: "AlexBlanco21", repo: "GitHub-Community-Day-…
+            └ []
+
+            ● List commits (MCP: github-mcp-server) · owner: "AlexBlanco21", repo: "GitHub-Community-Day-2026",…
+            └ [{"sha":"e664bfab9ba943907d01bad5e315527184106546","html_url":"https://g...
+
+            I’ve got the repository structure and recent commit history; next I’m verifying the actual background color implementation in source and checking for explicit issue references in commits/PRs.
+
+            ● Read styles.css
+            └ 545 lines read
+
+            ● Read index.html
+            └ 116 lines read
+
+            ● Read script.js
+            └ 291 lines read
+
+            ● Search code (MCP: github-mcp-server) · repo:AlexBlanco21/GitHub-Community-Day-2026 "#1" OR "#3" O…
+            └ {"total_count":0,"incomplete_results":false}
+
+            ● List commits (MCP: github-mcp-server) · owner: "AlexBlanco21", repo: "GitHub-Community-Day-2026",…
+            └ Output too large to read at once (21.9 KB). Saved to: /tmp/1778301724492...
+
+            The source confirms the background is still configurable via the slider and defaults to a blue hue, so I’m checking commit/PR metadata for any explicit issue closures before I finalize the classification.
+
+            ✗ Search pull requests (MCP: github-mcp-server) · "#1" OR "#3" OR "#5" OR "Closes #1" OR "Fixes #1"…
+            └ MCP server 'github-mcp-server': failed to search pull requests: GET
+                https://api.github.com/search/issues?order=desc&page=1&per_page=20&q=repo%3A
+                AlexBlanco21%2FGitHub-Community-Day-2026+is%3Apr+%22%231%22+OR+%22%233%22+OR
+                +%22%235%22+OR+%22Closes+%231%22+OR+%22Fixes+%231%22+OR+%22Resolves+%231%22+
+                OR+%22Implements+%231%22+OR+%22Closes+%233%22+OR+%22Fixes+%233%22+OR+%22Reso
+                lves+%233%22+OR+%22Implements+%233%22+OR+%22Closes+%235%22+OR+%22Fixes+%235%
+                22+OR+%22Resolves+%235%22+OR+%22Implements+%235%22&sort=updated: 422
+                Validation Failed [{Resource:Search Field:q Code:invalid Message:More than
+                five AND / OR / NOT operators were used.}]
+
+            ● Search code (MCP: github-mcp-server) · repo:AlexBlanco21/GitHub-Community-Day-2026 "Closes #1" OR…
+            └ {"total_count":0,"incomplete_results":false}
+
+            ● Get commit details (MCP: github-mcp-server) · owner: "AlexBlanco21", repo: "GitHub-Community-Day-…
+            └ {"sha":"66d35fa2acffc7b765a9511155a94de41f78fc5b","html_url":"https://gi...
+
+            ● Get commit details (MCP: github-mcp-server) · owner: "AlexBlanco21", repo: "GitHub-Community-Day-…
+            └ {"sha":"e664bfab9ba943907d01bad5e315527184106546","html_url":"https://gi...
+
+            [{"issue_number":5,"implemented":true,"confidence":"high","commit_sha":"66d35fa2acffc7b765a9511155a94de41f78fc5b","commit_message":"Modify skill and bg","pr_number":null,"reason":"direct_reference"},{"issue_number":3,"implemented":true,"confidence":"high","commit_sha":"66d35fa2acffc7b765a9511155a94de41f78fc5b","commit_message":"Modify skill and bg","pr_number":null,"reason":"direct_reference"},{"issue_number":1,"implemented":true,"confidence":"high","commit_sha":"66d35fa2acffc7b765a9511155a94de41f78fc5b","commit_message":"Modify skill and bg","pr_number":null,"reason":"direct_reference"}]
+
+
+            Changes   +0 -0
+            Duration  11s
+            Tokens    ↑ 118.4k • ↓ 1.1k • 86.0k (cached)
+            === End Output ===
+            === Extracted JSON Candidate ===
+            [{"issue_number":5,"implemented":true,"confidence":"high","commit_sha":"66d35fa2acffc7b765a9511155a94de41f78fc5b","commit_message":"Modify skill and bg","pr_number":null,"reason":"direct_reference"},{"issue_number":3,"implemented":true,"confidence":"high","commit_sha":"66d35fa2acffc7b765a9511155a94de41f78fc5b","commit_message":"Modify skill and bg","pr_number":null,"reason":"direct_reference"},{"issue_number":1,"implemented":true,"confidence":"high","commit_sha":"66d35fa2acffc7b765a9511155a94de41f78fc5b","commit_message":"Modify skill and bg","pr_number":null,"reason":"direct_reference"}]
+
+
+            Changes   +0 -0
+            Duration  11s
+            Tokens    ↑ 118.4k • ↓ 1.1k • 86.0k (cached)
+          EOF
+
+      - name: Show Raw Output
+        run: |
+          echo "=== Copilot Output ==="
+          cat /tmp/copilot_output.txt
+          echo "=== End Output ==="
+
+      - name: Extract JSON
+        run: |
+          awk 'BEGIN{capture=0} /^\[/{capture=1} capture{print; if(/\]$/){exit}}' /tmp/copilot_output.txt > /tmp/copilot_json_candidate.txt
+
+          echo "=== Extracted JSON Candidate ==="
+          cat /tmp/copilot_json_candidate.txt
+          echo "=== End JSON Candidate ==="
+
+      - name: Validate JSON
+        run: |
+          if jq empty /tmp/copilot_json_candidate.txt >/dev/null 2>&1; then
+            cp /tmp/copilot_json_candidate.txt /tmp/detection_results.json
+            echo "✅ Valid JSON detected"
+          else
+            echo "❌ Invalid JSON output"
+
+            perl -0777 -ne 'print $1 if /(\[[\s\S]*?\])/m' /tmp/copilot_output.txt > /tmp/detection_results.json
+
+            if jq empty /tmp/detection_results.json >/dev/null 2>&1; then
+              echo "✅ Recovered valid JSON"
+            else
+              echo "❌ Could not recover valid JSON"
+              echo '[]' > /tmp/detection_results.json
+            fi
+          fi
+
+          echo "=== Final Detection Results ==="
+          cat /tmp/detection_results.json
+
+      - name: Test jq Parsing
+        run: |
+          echo "=== Parsed Issues ==="
+
+          cat /tmp/detection_results.json | jq '.'
+
+          echo ""
+          echo "Issue count:"
+          cat /tmp/detection_results.json | jq 'length'
