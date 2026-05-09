@@ -87,41 +87,75 @@ jobs:
           cat /tmp/copilot_output.txt
           echo "=== End Output ==="
 
-      - name: Extract JSON
+      - name: Extract JSON Robustly
         run: |
-          awk 'BEGIN{capture=0} /^\[/{capture=1} capture{print; if(/\]$/){exit}}' /tmp/copilot_output.txt > /tmp/copilot_json_candidate.txt
+          python3 - <<'PY'
+          import json
+          import re
 
-          echo "=== Extracted JSON Candidate ==="
-          cat /tmp/copilot_json_candidate.txt
-          echo "=== End JSON Candidate ==="
+          INPUT = "/tmp/copilot_output.txt"
+          OUTPUT = "/tmp/detection_results.json"
+
+          with open(INPUT, "r", encoding="utf-8", errors="ignore") as f:
+              text = f.read()
+
+          # Remove ANSI escape sequences
+          text = re.sub(r'\x1B\[[0-?]*[ -/]*[@-~]', '', text)
+
+          decoder = json.JSONDecoder()
+
+          found = False
+
+          for i, ch in enumerate(text):
+              # JSON can only start with [ or {
+              if ch not in '[{':
+                  continue
+
+              try:
+                  obj, end = decoder.raw_decode(text[i:])
+
+                  # Only accept list/dict JSON containers
+                  if isinstance(obj, (list, dict)):
+                      with open(OUTPUT, "w", encoding="utf-8") as out:
+                          json.dump(obj, out, ensure_ascii=False, indent=2)
+
+                      found = True
+                      print("✅ JSON extracted successfully")
+                      break
+
+              except Exception:
+                  pass
+
+          if not found:
+              with open(OUTPUT, "w") as out:
+                  out.write("[]")
+
+              print("❌ No valid JSON found")
+          PY
 
       - name: Validate JSON
         run: |
-          if jq empty /tmp/copilot_json_candidate.txt >/dev/null 2>&1; then
-            cp /tmp/copilot_json_candidate.txt /tmp/detection_results.json
-            echo "✅ Valid JSON detected"
+          echo "=== Extracted JSON ==="
+          cat /tmp/detection_results.json
+          echo ""
+          echo "=== Validation ==="
+
+          if jq empty /tmp/detection_results.json >/dev/null 2>&1; then
+            echo "✅ Valid JSON"
           else
-            echo "❌ Invalid JSON output"
-
-            perl -0777 -ne 'print $1 if /(\[[\s\S]*?\])/m' /tmp/copilot_output.txt > /tmp/detection_results.json
-
-            if jq empty /tmp/detection_results.json >/dev/null 2>&1; then
-              echo "✅ Recovered valid JSON"
-            else
-              echo "❌ Could not recover valid JSON"
-              echo '[]' > /tmp/detection_results.json
-            fi
+            echo "❌ Invalid JSON"
+            exit 1
           fi
 
-          echo "=== Final Detection Results ==="
-          cat /tmp/detection_results.json
-
-      - name: Test jq Parsing
+      - name: Parse Results
         run: |
-          echo "=== Parsed Issues ==="
-
-          cat /tmp/detection_results.json | jq '.'
+          echo "=== Pretty JSON ==="
+          jq '.' /tmp/detection_results.json
 
           echo ""
-          echo "Issue count:"
-          cat /tmp/detection_results.json | jq 'length'
+          echo "=== Issue Count ==="
+          jq 'length' /tmp/detection_results.json
+
+          echo ""
+          echo "=== Issue Numbers ==="
+          jq '.[].issue_number' /tmp/detection_results.json
